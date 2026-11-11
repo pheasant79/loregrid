@@ -53,6 +53,20 @@ test('downloads a sanitized V2 tree export', async ({ page }) => {
 test('opens the production build directly from the filesystem', async ({ page }) => {
   await page.goto(pathToFileURL(resolve('dist/index.html')).href);
   await expect(page.locator('#treeTitle')).toHaveText('远境观测站');
-  await expect(page.locator('.graph-node')).toHaveCount(20);
+  await expect(page.locator('.graph-node')).toHaveCount(5);
+  await page.locator('#tabs button').first().click();
+  await expect(page.locator('#activePage')).toHaveText('ALL');
   await expect(page.locator('#layoutBusy')).toBeHidden();
+  await expect(page.locator('.graph-node')).toHaveCount(20);
+});
+
+test('keeps the research board usable at a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('#layoutBusy')).toBeHidden();
+  await expect(page.locator('.graph-node').first()).toBeVisible();
+  const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflows).toBe(false);
+  await expect(page.locator('#tabs')).toBeVisible();
+  await expect(page).toHaveScreenshot('narrow-board.png', { animations: 'disabled' });
 });

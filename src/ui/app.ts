@@ -76,7 +76,7 @@ export class LoregridApp {
             <button id="fitView" class="icon-button" type="button" data-i18n-title="fit" aria-label="Fit view">⌗</button>
           </div>
         </nav>
-        <main id="workspace" class="workspace">
+        <main id="workspace" class="workspace details-closed">
           <section id="viewport" class="viewport" tabindex="0" aria-label="Loregrid graph">
             <div class="canvas-hud">
               <div><span id="activePage">ALL</span><small id="graphStats"></small></div>
@@ -190,7 +190,8 @@ export class LoregridApp {
     this.progress = loaded.progress;
     this.language = chooseLanguage(this.tree.language, this.progress.ui?.language);
     const requestedKey = this.progress.ui?.lastGraphKey;
-    this.graphKey = requestedKey && this.graphKeyExists(requestedKey) ? requestedKey : 'all';
+    const firstTab = [...this.tree.tabs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0];
+    this.graphKey = requestedKey && this.graphKeyExists(requestedKey) ? requestedKey : firstTab ? tabKey(firstTab.id) : 'all';
     this.element('treeTitle').textContent = this.tree.title;
     this.element('treeSubtitle').textContent = this.tree.subtitle ?? this.tree.description ?? '';
     this.applyLanguage();
@@ -236,20 +237,25 @@ export class LoregridApp {
   private renderTabs(): void {
     const host = this.element('tabs');
     host.textContent = '';
-    const entries: Array<{ key: GraphKey; label: string; color: string }> = [
-      { key: 'all', label: t(this.language, 'all'), color: '#d1a95e' },
+    const completedCount = (tabId?: string): number => this.tree.nodes.filter((node) => (!tabId || node.tabId === tabId) && this.progress.completed[node.id]).length;
+    const nodeCount = (tabId?: string): number => this.tree.nodes.filter((node) => !tabId || node.tabId === tabId).length;
+    const entries: Array<{ key: GraphKey; label: string; color: string; count: number; done: number }> = [
+      { key: 'all', label: t(this.language, 'all'), color: '#d1a95e', count: nodeCount(), done: completedCount() },
       ...[...this.tree.tabs]
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-        .map((tab) => ({ key: tabKey(tab.id), label: this.language === 'en' ? tab.labelEn ?? tab.label : tab.label, color: tab.color ?? '#6687a6' })),
+        .map((tab) => ({ key: tabKey(tab.id), label: this.language === 'en' ? tab.labelEn ?? tab.label : tab.label, color: tab.color ?? '#6687a6', count: nodeCount(tab.id), done: completedCount(tab.id) })),
     ];
     entries.forEach((entry) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = this.graphKey === entry.key ? 'active' : '';
+      button.setAttribute('aria-label', entry.label);
+      button.setAttribute('aria-current', this.graphKey === entry.key ? 'page' : 'false');
       button.style.setProperty('--tab-color', entry.color);
       const dot = document.createElement('span'); dot.className = 'tab-dot';
       const label = document.createElement('span'); label.textContent = entry.label;
-      button.append(dot, label);
+      const meta = document.createElement('small'); meta.className = 'tab-count'; meta.textContent = `${entry.done} / ${entry.count}`;
+      button.append(dot, label, meta);
       button.onclick = () => void this.switchGraph(entry.key);
       host.append(button);
     });

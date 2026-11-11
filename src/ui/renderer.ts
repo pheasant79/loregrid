@@ -213,15 +213,35 @@ export class GraphRenderer {
       button.dataset.nodeId = node.nodeId;
       button.setAttribute('aria-label', node.title);
 
-      const accent = document.createElement('span');
-      accent.className = 'node-accent';
+      const status = statusOf(progress, tree, node.nodeId);
+      const icon = document.createElement('span');
+      icon.className = 'node-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = node.kind === 'proxy' ? '↗' : node.nodeKind === 'milestone' ? '✦' : node.nodeKind === 'optional' ? '○' : '◇';
+      const heading = document.createElement('span');
+      heading.className = 'node-heading';
+      const category = document.createElement('span');
+      category.className = 'node-category';
+      category.textContent = node.kind === 'proxy' ? 'LINKED PAGE' : (node.nodeKind ?? 'topic').toUpperCase();
+      const state = document.createElement('span');
+      state.className = 'node-state';
+      state.setAttribute('aria-hidden', 'true');
+      state.textContent = status === 'completed' ? '✓' : status === 'ready' ? '•' : '◦';
+      heading.append(category, state);
       const title = document.createElement('span');
       title.className = 'node-title';
       title.textContent = node.title;
-      const meta = document.createElement('span');
-      meta.className = 'node-meta';
-      meta.textContent = node.kind === 'proxy' ? 'EXTERNAL' : (node.nodeKind ?? 'topic').toUpperCase();
-      button.append(accent, title, meta);
+      const footer = document.createElement('span');
+      footer.className = 'node-footer';
+      const track = document.createElement('span');
+      track.className = 'node-progress';
+      const fill = document.createElement('i');
+      if (status === 'completed') fill.style.width = '100%';
+      track.append(fill);
+      const footerLabel = document.createElement('span');
+      footerLabel.textContent = status === 'completed' ? 'COMPLETED' : status === 'ready' ? 'AVAILABLE' : 'PREREQUISITES';
+      footer.append(track, footerLabel);
+      button.append(icon, heading, title, footer);
       button.addEventListener('click', (event) => {
         event.stopPropagation();
         this.callbacks.onNodeClick(node);
@@ -257,13 +277,23 @@ export class GraphRenderer {
 function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: ViewTransform): void {
   const spacing = 42 * view.scale;
   if (spacing < 9) return;
-  ctx.strokeStyle = 'rgba(125, 151, 176, 0.08)';
+  ctx.strokeStyle = 'rgba(105, 145, 135, 0.075)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = ((view.x % spacing) + spacing) % spacing; x < width; x += spacing) {
     ctx.moveTo(x, 0); ctx.lineTo(x, height);
   }
   for (let y = ((view.y % spacing) + spacing) % spacing; y < height; y += spacing) {
+    ctx.moveTo(0, y); ctx.lineTo(width, y);
+  }
+  ctx.stroke();
+  const majorSpacing = spacing * 5;
+  ctx.strokeStyle = 'rgba(105, 145, 135, 0.13)';
+  ctx.beginPath();
+  for (let x = ((view.x % majorSpacing) + majorSpacing) % majorSpacing; x < width; x += majorSpacing) {
+    ctx.moveTo(x, 0); ctx.lineTo(x, height);
+  }
+  for (let y = ((view.y % majorSpacing) + majorSpacing) % majorSpacing; y < height; y += majorSpacing) {
     ctx.moveTo(0, y); ctx.lineTo(width, y);
   }
   ctx.stroke();
