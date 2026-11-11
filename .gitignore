@@ -1,0 +1,24 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.vite/
+.cache/
+
+# Local-only learning data, progress exports, and task coordination records.
+local-data/
+*.progress.json
+*-progress-*.json
+docs/long-tasks/
+
+# Local benchmark and generated scratch output.
+benchmarks/output/
+tmp/
+*.log
+
+# Editor and operating-system noise.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
