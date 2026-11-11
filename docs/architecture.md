@@ -1,23 +1,29 @@
 # Architecture
 
-## Source and generated pages
+Loregrid is a static TypeScript application built by Vite into one offline HTML file.
 
-`data/*.json` is the public curriculum source of truth. `src/template.html`, `src/style.css`, `src/engine.cjs` and `src/app.js` define the generic viewer. `scripts/build.mjs` embeds those files with one tree into standalone HTML. Generated pages need no package runtime, CDN, fetch request or web server.
+## Data flow
 
-`index.html` loads the CS example. `examples/*.html` provides standalone examples. The example selector navigates between these generated pages; opening a local custom JSON mounts it in the current viewer.
+1. `normalizeTree` accepts `loregrid/tree-v2` or migrates `learning-tech-tree/v1` in memory.
+2. `validateTree` checks IDs, references, safe URLs, and required-edge cycles.
+3. `buildGraphView` creates either one tab graph with prerequisite proxies or the canonical All graph.
+4. `layout.worker.ts` caches and computes a layered layout outside the UI thread.
+5. `GraphRenderer` draws grid/edges/minimap on Canvas and visible nodes in a virtualized DOM layer backed by a spatial index.
+6. `LoregridApp` coordinates tabs, search, details, import/export, language, and local progress.
 
-## Engine
+## Identity
 
-The engine exports structural validation, progress parsing, hard-prerequisite closures and layout. Layout uses both hard and development/application edges to keep all arrows directed toward the right. Lock status uses only hard prerequisites.
+- `node.id` is the stable business identity.
+- `GraphViewNode.viewId` identifies a concrete rendering instance.
+- In All and the node's own tab, real nodes use the canonical ID.
+- A cross-tab prerequisite proxy uses `proxy:<tabId>:<nodeId>` and retains the canonical `nodeId` plus `targetTabId`.
 
-Progress parsing requires the same tree ID. The current tree's node IDs filter restored entries. User content is rendered as text; source URLs must use HTTP or HTTPS. Tree data is escaped before it is embedded in HTML.
+## Layout
 
-## Viewer lifecycle
+Required edges determine rank. Long edges are split through temporary dummy nodes, layers are reordered with repeated barycentric sweeps, and nodes are compactly placed. Recommended and related edges are routed after primary placement and do not affect rank. Coordinates are output only; they are not stored in tree data.
 
-Opening a custom definition validates it before replacing the existing tree. Each mounted viewer owns its layout, selection, progress and rendering state. Its resize observer, keyboard handler, wheel guard, animation frame and pending notification are cleaned up when replacing it. Event-property handlers are replaced on mount.
+## Rendering and scale
 
-The browser validator is structural protection for opened data. It does not establish academic correctness. The authoring CLI uses the same validator unless `--skip-validation` is explicitly requested.
+Canvas draws the background, edges, and minimap. DOM buttons provide readable text, keyboard focus, and node interactions. A spatial grid returns only nodes near the viewport. Zoom level controls label detail. Layout is cancellable by terminating and recreating the Worker.
 
-## Storage and publication
-
-Only public definitions and generic code belong in the repository. Progress lives in browser storage and user-exported backups. The project does not create or publish repositories. GitHub Pages can serve the checked-in standalone HTML directly.
+The 10,000-node target is a pressure test, not a hard limit or a promise that All remains at 60 FPS. Page interaction is the primary performance budget.

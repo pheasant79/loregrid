@@ -1,0 +1,22 @@
+{
+  "format": "loregrid/tree-v2",
+  "id": "my-learning-map",
+  "title": "My learning map",
+  "subtitle": "Replace this fictional template with your real subject",
+  "version": "1.0.0",
+  "language": "en",
+  "tabs": [
+    { "id": "foundations", "label": "Foundations", "color": "#59a9c2", "order": 1 },
+    { "id": "practice", "label": "Practice", "color": "#d18b5b", "order": 2 }
+  ],
+  "resources": [],
+  "nodes": [
+    { "id": "orientation", "title": "Clarify the starting point", "tabId": "foundations", "kind": "milestone", "outcome": "Write the current knowledge, constraints, and target outcome." },
+    { "id": "core-concept", "title": "Learn one core concept", "tabId": "foundations", "outcome": "Explain the concept and solve a representative task." },
+    { "id": "small-project", "title": "Build a small project", "tabId": "practice", "outcome": "Deliver a reviewable artifact and document its limits." }
+  ],
+  "edges": [
+    { "id": "orientation-core", "source": "orientation", "target": "core-concept", "type": "required" },
+    { "id": "core-project", "source": "core-concept", "target": "small-project", "type": "required" }
+  ]
+}

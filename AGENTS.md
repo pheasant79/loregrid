@@ -1,41 +1,36 @@
 # Repository guidance
 
-This project is a general learning-tech-tree viewer and data format. It is not restricted to a discipline, institution, degree sequence, duration or research method.
+Loregrid is a general, paged learning-tech-tree viewer and versioned data format. It is not a RimWorld mod and must not hard-code a discipline, institution, degree duration, or research method.
 
-## Before creating a tree
+## Architecture
 
-Read `docs/create-with-codex.md`, `docs/data-format.md`, `docs/customization.md`, and `prompts/create-tree.md`. Use `data/minimal-template.json` for the structure; use the CS example only as an illustration, never as a compulsory curriculum.
+- Use TypeScript native modules and the existing Vite build. Do not add a UI framework without an explicit architecture decision.
+- Keep public tree data, normalized graph views, layout, rendering, and private progress as separate modules.
+- `required` edges affect unlock state and rank; multiple required prerequisites mean AND.
+- `recommended` edges are directed but non-gating. `related` edges are non-directional in product semantics and do not determine rank.
+- Every node belongs to one primary tab. Tab views may add prerequisite proxies; All must contain one canonical real node per business node.
+- Node coordinates are computed, never authored in data. Optional group/order/stage values are hints only.
+- Preserve Worker layout, viewport culling, stable IDs, and offline single-file output.
 
-Use the user's stated background and preferences. Ask only for missing facts that materially change the tree; state reasonable assumptions when scope has been delegated. Do not silently assume a separate master's degree, fixed doctoral years, universal course lists, publication quotas, or institutional admission rules.
+## Compatibility and safety
 
-## Curriculum semantics
+- Continue reading `learning-tech-tree/v1` and `learning-tech-progress/v1` unless a versioned migration decision replaces them.
+- Treat imported JSON as untrusted. Render user text with text nodes, allow only HTTP(S) external URLs, limit notes/text, and never execute imported HTML or script.
+- There is no node hard limit. Values beyond 10,000 may warn, but must not be rejected solely for size.
+- Keep personal trees, notes, progress, credentials, private paths, task records, generated reports, and temporary benchmark output out of public commits.
+- Preserve `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/yart-source-map.md`. Do not copy RimWorld/YART visual assets or game-specific source.
 
-- Nodes are capabilities with defined scope and an observable `outcome`.
-- `prereqIds` means genuinely required knowledge for that scope; multiple values mean AND.
-- `relatedIds` is non-gating background; it is not a prerequisite or a graph-layout edge.
-- `applicationEdges` is directed development/application, with a concrete reason. It does not lock progress.
-- The combined prerequisite + application graph must be acyclic. Every node must be reachable from `startId` and be able to reach `endId`.
-- Connect specialist branches to meaningful use or deliverables. Do not invent connections or make every specialization mandatory merely to close the graph.
-- Keep institutional requirements distinct from suggested capabilities. Label unsupported curriculum judgments as educational design.
-- Use primary public sources when verifying specialized claims. Do not claim to have read full text when only metadata, abstracts or course outlines were accessed.
+## Verification
 
-## Files and privacy
+Run checks appropriate to the change:
 
-Create new definitions under `data/<stable-id>.json`. Build `examples/<stable-id>.html`. Keep IDs stable when editing an existing tree so progress can match them.
-
-Do not place real identities, advisors, student identifiers, contact details, credentials, private paths, personal notes, progress backups, unpublished research, or unauthorized documents in public examples. Use a generic fictional or non-personal profile by default. Ask before publishing personal content if the user explicitly requests a personalized public example.
-
-Keep content changes in JSON. Avoid hard-coding a field, degree or duration into `src/app.js`, `src/engine.cjs` or `src/template.html`. Do not embed API credentials or add a hosted model dependency.
-
-## Authoring commands
-
-The project has no npm dependencies. When validation is authorized:
-
-```sh
-node scripts/validate.mjs data/<stable-id>.json
-node scripts/build.mjs data/<stable-id>.json examples/<stable-id>.html
+```powershell
+pnpm check
+pnpm test
+pnpm validate -- data/loregrid-demo.json
+pnpm build
+pnpm test:e2e
+pnpm benchmark
 ```
 
-The builder normally validates graph structure. If the user explicitly opts out of checks, respect that choice, build with `--skip-validation`, and disclose the verification limit. Do not treat a structural pass as academic review or browser QA. Do not claim a command passed without having run it.
-
-Only upload, push or deploy when that action is within the user's request. Generating a GitHub-ready package is not itself an instruction to change repository permissions or publish personal content.
+Do not claim a browser, performance, accessibility, or licensing check passed unless it was actually run. Do not push, publish, enable Pages, create a Release, or open an upstream PR unless the user explicitly authorizes it.

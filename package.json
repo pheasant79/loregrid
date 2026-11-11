@@ -1,14 +1,33 @@
 {
-  "name": "learning-tech-tree",
-  "version": "0.1.1",
+  "name": "loregrid",
+  "version": "2.0.0-alpha.0",
   "private": true,
+  "type": "module",
   "license": "MIT",
-  "description": "Turn any learning journey into an interactive tech tree.",
+  "description": "A paged, offline learning technology tree.",
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "validate": "node scripts/validate.mjs"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vite build && playwright test",
+    "benchmark": "tsx scripts/benchmark.ts",
+    "validate": "tsx scripts/validate.ts",
+    "migrate": "tsx scripts/migrate-v1.ts"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.10.0",
+    "jsdom": "^27.1.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2",
+    "vite-plugin-singlefile": "^2.3.0",
+    "vitest": "^4.0.8"
   }
 }
