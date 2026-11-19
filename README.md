@@ -6,9 +6,9 @@
 
 **Current source version:** `2.0.0-rc.9` (release candidate; no downloadable release yet).
 
-![Loregrid showing a learning tree with prerequisite paths and learning stages](docs/assets/loregrid-preview-en.png)
+![The 155-node All overview of Loregrid's computer science sample tree](docs/assets/loregrid-preview-en.jpg)
 
-*The screenshot shows the bundled fictional demo. Its sample tree content is Chinese; the interface can be switched between Chinese and English.*
+*The full All view of the repository's 155-node computer science example. Fit-to-view shows the graph's scale and structure; zoom in to read individual nodes.*
 
 Loregrid turns a subject into a navigable map instead of a long checklist. One tree contains focused pages and an **All** overview. Pages keep large subjects readable, while prerequisites can still connect ideas across pages. A tree may have several starting points and goals; it does not force one subject into a single linear course.
 
