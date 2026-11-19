@@ -1,6 +1,6 @@
 # Customization
 
-Copy `data/minimal-template-v2.json`, choose a stable tree ID, and replace the fictional content. A tree is defined by tabs, nodes, resources, and relations; the application has no subject-specific constants.
+Copy `data/templates/minimal-template-v2.json`, choose a stable tree ID, and replace the fictional content. A tree is defined by tabs, nodes, resources, and relations; the application has no subject-specific constants.
 
 Use tabs for durable areas that deserve independent reading and layout, such as foundations, fieldwork, analysis, language, design, or professional practice. Every node has one primary tab. Cross-tab required dependencies automatically become proxies.
 

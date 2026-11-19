@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
 test('opens V1 content, migrates progress without modifying its original storage, and retains notes', async ({ page }) => {
-  const input = JSON.parse(await readFile('data/computer-science-phd.json', 'utf8'));
+  const input = JSON.parse(await readFile('data/examples/computer-science-phd.json', 'utf8'));
   const node = input.nodes[0];
   await page.goto('/');
   await expect(page.locator('#layoutBusy')).toBeHidden();
@@ -13,7 +13,7 @@ test('opens V1 content, migrates progress without modifying its original storage
       format: 'learning-tech-progress/v1', treeId, completed: { [nodeId]: true }, notes: { [nodeId]: '旧笔记' },
     }));
   }, { treeId: input.id, nodeId: node.id });
-  await page.locator('#treeFile').setInputFiles('data/computer-science-phd.json');
+  await page.locator('#treeFile').setInputFiles('data/examples/computer-science-phd.json');
   await expect(page.locator('#treeTitle')).toHaveText(input.title);
   await expect(page.locator('#activePage')).toHaveText(input.branches[0].label);
   await expect(page.locator('#progressSummary')).toHaveText(`1 / ${input.nodes.length} 完成`);
@@ -46,7 +46,7 @@ test('opens the single file offline without external requests and renders import
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(pathToFileURL(resolve('dist/index.html')).href);
   await expect(page.locator('.graph-node').first()).toBeVisible();
-  const input = JSON.parse(await readFile('data/loregrid-demo.json', 'utf8'));
+  const input = JSON.parse(await readFile('data/examples/loregrid-demo.json', 'utf8'));
   input.id = 'safe-import';
   input.nodes[0].title = '<img src=x onerror=alert(1)>';
   input.nodes[0].summary = '<script>window.injected=true</script>';
@@ -66,7 +66,7 @@ test('opens the single file offline without external requests and renders import
 });
 
 test('switches local JSON trees and isolates queues, completion, and last page', async ({ page }) => {
-  const source = JSON.parse(await readFile('data/loregrid-demo.json', 'utf8'));
+  const source = JSON.parse(await readFile('data/examples/loregrid-demo.json', 'utf8'));
   const alpha = { ...source, id: 'same-tree-id', title: 'Alpha history' };
   const beta = { ...source, id: 'same-tree-id', title: 'Beta history' };
   await page.goto('/');
@@ -120,8 +120,71 @@ test('switches local JSON trees and isolates queues, completion, and last page',
   await expect(page.locator('#categorySelect')).toHaveValue('analysis');
 });
 
+test('loads public trees on demand and reopens the cached tree offline', async ({ page, context }) => {
+  const source = JSON.parse(await readFile('data/examples/loregrid-demo.json', 'utf8'));
+  const publicTree = { ...source, id: 'public-demo-tree', title: 'Public demo tree' };
+  let downloads = 0;
+  await page.route('**/tree-catalog.json', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      format: 'loregrid/public-tree-catalog-v1',
+      trees: [{ id: publicTree.id, title: publicTree.title, url: './trees/public-demo-tree.json' }],
+    }),
+  }));
+  await page.route('**/trees/public-demo-tree.json', (route) => {
+    downloads++;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify(publicTree) });
+  });
+  await page.goto('/');
+  await page.locator('#treeSwitcherToggle').click();
+  const publicChoice = page.locator('.tree-choice').filter({ hasText: publicTree.title });
+  await expect(publicChoice).toBeVisible();
+  await expect(publicChoice).toContainText('公开');
+  expect(downloads).toBe(0);
+  await publicChoice.click();
+  await expect(page.locator('#treeTitle')).toHaveText(publicTree.title);
+  expect(downloads).toBe(1);
+  await page.locator('.graph-node[data-node-id="station-orientation"]').click();
+  await page.locator('#detailBody button').filter({ hasText: '加入队列' }).click();
+
+  await page.route('**/tree-catalog.json', (route) => route.abort());
+  await page.route('**/trees/public-demo-tree.json', (route) => route.abort());
+  await page.reload();
+  await expect(page.locator('#treeTitle')).toHaveText(publicTree.title);
+  await expect(page.locator('.queue-card')).toHaveCount(1);
+  await page.locator('#treeSwitcherToggle').click();
+  await expect(page.locator('.tree-choice').filter({ hasText: publicTree.title })).toContainText('公开');
+  await page.keyboard.press('Escape');
+
+  await page.locator('#treeSwitcherToggle').click();
+  await page.locator('.tree-choice').filter({ hasText: '远境观测站' }).click();
+  await expect(page.locator('.queue-card')).toHaveCount(0);
+  await context.setOffline(true);
+  await page.locator('#treeSwitcherToggle').click();
+  await page.locator('.tree-choice').filter({ hasText: publicTree.title }).click();
+  await expect(page.locator('#treeTitle')).toHaveText(publicTree.title);
+  await expect(page.locator('.queue-card')).toHaveCount(1);
+});
+
+test('rejects a mismatched public tree without replacing the current tree', async ({ page }) => {
+  const source = JSON.parse(await readFile('data/examples/loregrid-demo.json', 'utf8'));
+  await page.route('**/tree-catalog.json', (route) => route.fulfill({
+    json: {
+      format: 'loregrid/public-tree-catalog-v1',
+      trees: [{ id: 'expected-tree', title: 'Mismatched tree', url: './trees/mismatch.json' }],
+    },
+  }));
+  await page.route('**/trees/mismatch.json', (route) => route.fulfill({ json: source }));
+  await page.goto('/');
+  await expect(page.locator('.graph-node').first()).toBeVisible();
+  await page.locator('#treeSwitcherToggle').click();
+  await page.locator('.tree-choice').filter({ hasText: 'Mismatched tree' }).click();
+  await expect(page.locator('#toast')).toContainText('ID does not match');
+  await expect(page.locator('#treeTitle')).toHaveText(source.title);
+});
+
 test('bounds and searches a large tree list instead of growing over the board', async ({ page }) => {
-  const source = JSON.parse(await readFile('data/loregrid-demo.json', 'utf8'));
+  const source = JSON.parse(await readFile('data/examples/loregrid-demo.json', 'utf8'));
   const files = Array.from({ length: 14 }, (_, index) => {
     const tree = { ...source, id: `library-tree-${index}`, title: `Study tree ${index}` };
     return { name: `study-${index}.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(tree)) };
@@ -131,8 +194,10 @@ test('bounds and searches a large tree list instead of growing over the board', 
   await page.locator('#treeSwitcherToggle').click();
   await expect(page.locator('#treeList .tree-choice')).toHaveCount(15);
   await expect(page.locator('#treePicker')).toBeVisible();
+  await expect(page.locator('#treeSearch')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('#treeList .tree-choice').first()).toBeFocused();
+  await page.locator('#treeList .tree-choice').first().focus();
   const dimensions = await page.locator('#treeList').evaluate((element) => ({
     height: element.clientHeight,
     content: element.scrollHeight,

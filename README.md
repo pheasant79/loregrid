@@ -1,6 +1,21 @@
 # Loregrid 2.0.0-rc.9
 
+Loregrid is delivered as a normal open-source repository. The readable algorithms and
+application source are under `src/`; the runnable customer artifact is generated under
+`dist/`. Start with [`docs/repository-layout.md`](docs/repository-layout.md) if you are
+unsure which folder to use.
+
 Loregrid is a paged, offline learning technology tree. It keeps the useful static-web delivery of Learning Tech Tree while replacing the original single-canvas viewer with independent pages, an independently laid out **All** view, cross-page prerequisite proxies, global search, local progress, and a layered graph layout running in a Web Worker.
+
+**Start here:** [Chinese guide](docs/README.zh-CN.md) · [Repository layout](docs/repository-layout.md) · [Customer delivery](docs/customer-delivery.md) · [Privacy and storage](docs/privacy.md)
+
+## Open or build
+
+- Customer use: open `Loregrid.html` in the generated `dist/customer-delivery/` folder.
+- Source development: Node.js 20+ and pnpm; run `pnpm install` then `pnpm dev`.
+- Build a customer folder with a supplied tree: `pnpm build:customer -- path/to/tree.json`.
+
+The repository-root `index.html` is a Vite development entry, not the customer launch instruction. Loregrid has no backend or cloud sync; user trees and progress are stored in the browser profile. Read the privacy guide before relying on that storage.
 
 This is a versioned application release candidate. The regular build bundles a fictional starter tree and can open the user's V1 or V2 files. The application is a general tool; customer-specific content is optional. To create a standalone file with an agreed tree already embedded:
 
@@ -8,7 +23,11 @@ This is a versioned application release candidate. The regular build bundles a f
 pnpm build:customer -- local-data\customer-tree.json
 ```
 
-This validates and embeds that tree into `dist/index.html`, then assembles a handoff folder at `dist/customer-delivery/` containing the versioned HTML and license notices. The generated file contains the selected tree and must be treated as private; `dist/` and `local-data/` are ignored by Git. Progress and notes remain local to the browser and can be backed up separately.
+This validates and embeds that tree into `dist/index.html`, then assembles a handoff folder at
+`dist/customer-delivery/`. The handoff folder has a clear `Loregrid.html` entry, the original
+tree under `trees/`, a Chinese quick-start, a delivery manifest and license notices. The
+generated folder contains the selected tree and must be treated as private; `dist/` and
+`local-data/` are ignored by Git. See [`docs/customer-delivery.md`](docs/customer-delivery.md).
 
 ## What is different
 
@@ -20,7 +39,7 @@ This validates and embeds that tree into `dist/index.html`, then assembles a han
 - Progress and private notes stay separate from public tree definitions.
 - Existing `learning-tech-tree/v1` JSON and legacy progress can be read and upgraded.
 - The production build is one self-contained HTML file, including the layout Worker.
-- The lower-right tree library lists previously added JSON files. Each tree keeps its own pages, queue, completion records, and notes; even imported files sharing a tree ID have separate local progress.
+- The lower-right tree library combines the bundled starter, locally imported JSON files, and trees listed in the public catalog. Local trees are stored in this browser's IndexedDB. Public tree metadata is refreshed at startup; a public tree is downloaded and validated only when opened, then cached in IndexedDB for offline use. Its catalog is `public/tree-catalog.json` in the source tree (published as `tree-catalog.json` alongside the app). Add public V2 trees under `public/trees/` and list them in that catalog using `id`, `title`, and a JSON `url` relative to the catalog, with an optional `fileName`. The catalog schema is [`schema/public-tree-catalog.schema.json`](schema/public-tree-catalog.schema.json). Builds can point to a different catalog with `LOREGRID_PUBLIC_TREE_CATALOG_URL`. The repository catalog starts empty because no public tree submissions have been approved. Each tree keeps its own pages, queue, completion records, and notes; even imported files sharing a tree ID have separate local progress.
 
 Loregrid is inspired by the clarity of YART's paged research-tree experience. It does not include RimWorld code, integration, or game-owned art; YART-owned textures are retained under their MIT notice. See [third-party notices](THIRD_PARTY_NOTICES.md) and the [source mapping](docs/yart-source-map.md).
 
@@ -39,6 +58,8 @@ pnpm dev
 
 Open the printed local URL. The bundled fictional starter is sample content, separate from the application features. Use **Add tree** in the top-left menu, or **Add JSON trees** in the lower-right tree library, to select one or more V1/V2 JSON files. Added trees are copied into this browser's IndexedDB and remain available after reloading. The compact selector opens a searchable, height-limited scrolling list; it never adds a second cross-tree All view. Each tree's All contains only its own pages.
 
+When hosted over HTTP(S), the app also fetches the configured public catalog at startup. Public trees appear beside local trees, are downloaded only when selected, and are cached locally after validation. The starter and local trees remain usable if the network is unavailable. Opening the single-file app with `file:` skips remote requests; public trees previously cached in that browser remain available.
+
 Browsers cannot silently scan arbitrary folders. Adding a file does not watch or modify its original disk copy; a changed file can be imported as another local entry. Keep the source JSON and export progress backups. To embed a tree in the application instead, use the customer build command above.
 
 Build a double-clickable offline file:
@@ -47,15 +68,15 @@ Build a double-clickable offline file:
 pnpm build
 ```
 
-The result is `dist/index.html`. Its footer shows the exact build version (`2.0.0-rc.9`). It has no runtime npm dependency, account, backend, API key, telemetry, or CDN requirement. `pnpm build` creates the general application with starter content; `pnpm build:customer -- <tree.json>` replaces `dist/index.html` with a build containing the selected tree and assembles the shareable files in `dist/customer-delivery/`. Distribute the general HTML with `LICENSE` and `THIRD_PARTY_NOTICES.md` too.
+The result is `dist/index.html`. Its footer shows the exact build version (`2.0.0-rc.9`). It has no runtime npm dependency, account, backend, API key, telemetry, or CDN requirement. `pnpm build` creates the general application with starter content; `pnpm build:customer -- <tree.json>` replaces `dist/index.html` with a build containing the selected tree and assembles the customer folder described above. Distribute `Loregrid.html`, `使用说明.txt`, `trees/`, `LICENSE` and `THIRD_PARTY_NOTICES.md` from that folder.
 
 ## Data and migration
 
-The public format is `loregrid/tree-v2`. Start from [`data/loregrid-demo.json`](data/loregrid-demo.json) and read [`docs/data-format.md`](docs/data-format.md).
+The public format is `loregrid/tree-v2`. Start from [`data/examples/loregrid-demo.json`](data/examples/loregrid-demo.json) or copy [`data/templates/minimal-template-v2.json`](data/templates/minimal-template-v2.json), then read [`docs/data-format.md`](docs/data-format.md).
 
 ```powershell
-pnpm validate -- data/my-tree.json
-pnpm migrate -- data/old-tree.json data/new-tree.json
+pnpm validate -- data/examples/loregrid-demo.json
+pnpm migrate -- data/compatibility/learning-tech-tree-v1-template.json data/migrated-tree.json
 ```
 
 Opening V1 in the UI performs the same migration in memory without changing the source file.

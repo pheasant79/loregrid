@@ -2,6 +2,8 @@
 
 Loregrid 是一个分页式、离线运行的学习科技树。它保留 Learning Tech Tree 的静态网页形式，同时加入真正的独立分页、单独排版的总览、跨页前置代理、全局搜索、右侧详情、完成状态、私人笔记和备份。
 
+先看：[仓库与交付目录说明](repository-layout.md) · [客户交付说明](customer-delivery.md)
+
 ## 本地运行
 
 需要 Node.js 20 或更新版本。
@@ -19,6 +21,10 @@ pnpm build
 
 结果位于 `dist/index.html`。使用者不需要安装 npm、登录账号或连接服务器。
 
+如果是给客户的版本，使用 `pnpm build:customer -- path/to/customer-tree.json`，然后把
+`dist/customer-delivery/` 整个文件夹交给客户。客户只需双击其中的 `Loregrid.html`；
+不需要打开源码仓库或运行开发命令。
+
 ## 添加和切换树
 
 点击右下角的「树库」，再点「添加树」，可一次选择多个 V1/V2 JSON 文件。也可以使用左上角菜单中的打开入口。树库显示树名和文件名，点击即可打开；每棵树分别保留队列、完成记录、笔记、组合分页和上次打开的分页。即使两份文件的树 ID 相同，本地进度也互不混用。
@@ -29,13 +35,13 @@ pnpm build
 
 ## 创建自己的树
 
-复制 `data/minimal-template-v2.json`，保持节点 ID 稳定，并阅读 `docs/data-format.md`。私人学习树建议放在已忽略的 `local-data/`，不要把个人笔记或进度备份提交到公开仓库。
+复制 `data/templates/minimal-template-v2.json`，保持节点 ID 稳定，并阅读 `docs/data-format.md`。私人学习树不要提交到公开仓库；`local-data/` 只是开发者临时输入目录，运行时树库保存在浏览器本地。
 
 校验或迁移：
 
 ```powershell
-pnpm validate -- data/my-tree.json
-pnpm migrate -- data/old-v1-tree.json data/new-v2-tree.json
+pnpm validate -- data/examples/loregrid-demo.json
+pnpm migrate -- data/compatibility/learning-tech-tree-v1-template.json data/new-v2-tree.json
 ```
 
 旧版 `learning-tech-tree/v1` 可以直接在界面中打开，Loregrid 会在内存中转换，不会修改原文件。

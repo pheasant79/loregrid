@@ -7,6 +7,9 @@ export interface TreeLibraryItem {
   fileName: string;
   addedAt: number;
   migrateLegacyProgress: boolean;
+  source?: 'builtin' | 'local' | 'public';
+  remoteUrl?: string;
+  cached?: boolean;
 }
 
 export interface TreeLibraryEntry extends TreeLibraryItem {
@@ -42,7 +45,23 @@ export class TreeLibrary {
     const key = globalThis.crypto?.randomUUID?.() ?? `tree-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const entry: TreeLibraryEntry = {
       key, title: tree.title, treeId: tree.id, fileName: fileName.slice(0, 260),
-      tree, addedAt: Date.now(), migrateLegacyProgress,
+      tree, addedAt: Date.now(), migrateLegacyProgress, source: 'local',
+    };
+    await this.put(entry);
+    return entry;
+  }
+
+  async cachePublic(tree: TreeDefinitionV2, item: TreeLibraryItem): Promise<TreeLibraryEntry> {
+    const entry: TreeLibraryEntry = {
+      ...item,
+      key: `public:${item.treeId}`,
+      title: tree.title,
+      treeId: tree.id,
+      tree,
+      addedAt: 0,
+      migrateLegacyProgress: false,
+      source: 'public',
+      cached: true,
     };
     await this.put(entry);
     return entry;
@@ -51,7 +70,7 @@ export class TreeLibrary {
   async ensureBuiltIn(tree: TreeDefinitionV2): Promise<void> {
     await this.put({
       key: `builtin:${tree.id}`, title: tree.title, treeId: tree.id,
-      fileName: 'Loregrid starter', tree, addedAt: 0, migrateLegacyProgress: true,
+      fileName: 'Loregrid starter', tree, addedAt: 0, migrateLegacyProgress: true, source: 'builtin',
     });
   }
 

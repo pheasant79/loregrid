@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Loregrid public tree catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "trees"],
+  "properties": {
+    "format": {
+      "const": "loregrid/public-tree-catalog-v1"
+    },
+    "trees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "url"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,95}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "url": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "fileName": {
+            "type": "string",
+            "maxLength": 260
+          }
+        }
+      }
+    }
+  }
+}

@@ -27,7 +27,7 @@ Run checks appropriate to the change:
 ```powershell
 pnpm check
 pnpm test
-pnpm validate -- data/loregrid-demo.json
+pnpm validate -- data/examples/loregrid-demo.json
 pnpm build
 pnpm test:e2e
 pnpm benchmark

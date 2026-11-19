@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const packageInfo = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 const bundledTree = process.env.LOREGRID_TREE_JSON
   ? JSON.parse(process.env.LOREGRID_TREE_JSON) as unknown
-  : JSON.parse(readFileSync(new URL('./data/loregrid-demo.json', import.meta.url), 'utf8')) as unknown;
+  : JSON.parse(readFileSync(new URL('./data/examples/loregrid-demo.json', import.meta.url), 'utf8')) as unknown;
 const bundledTreeLiteral = JSON.stringify(bundledTree)
   .replace(/</g, '\\u003c')
   .replace(/\u2028/g, '\\u2028')
@@ -16,6 +16,7 @@ export default defineConfig({
   define: {
     __LOREGRID_VERSION__: JSON.stringify(packageInfo.version),
     __LOREGRID_INITIAL_TREE__: bundledTreeLiteral,
+    __LOREGRID_PUBLIC_TREE_CATALOG_URL__: JSON.stringify(process.env.LOREGRID_PUBLIC_TREE_CATALOG_URL ?? './tree-catalog.json'),
   },
   plugins: [viteSingleFile()],
   build: {

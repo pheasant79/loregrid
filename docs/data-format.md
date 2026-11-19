@@ -1,6 +1,6 @@
 # Loregrid tree format v2
 
-The public format identifier is `loregrid/tree-v2`. See `schema/loregrid-tree-v2.schema.json` and `data/loregrid-demo.json` for the complete machine-readable contract.
+The public format identifier is `loregrid/tree-v2`. See `schema/loregrid-tree-v2.schema.json` and `data/examples/loregrid-demo.json` for the complete machine-readable contract. A clean starter template is in `data/templates/minimal-template-v2.json`.
 
 ## Minimal tree
 

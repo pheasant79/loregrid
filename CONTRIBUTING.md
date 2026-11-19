@@ -9,7 +9,7 @@ Before submitting code or data, run:
 ```powershell
 pnpm check
 pnpm test
-pnpm validate -- data/loregrid-demo.json
+pnpm validate -- data/examples/loregrid-demo.json
 pnpm build
 ```
 

@@ -3,7 +3,7 @@
 ```text
 Use this Loregrid repository as the implementation reference. Read AGENTS.md,
 docs/create-with-codex.md, docs/data-format.md, docs/customization.md, and
-data/minimal-template-v2.json before editing.
+data/templates/minimal-template-v2.json before editing.
 
 Subject or interdisciplinary goal: [fill in]
 Starting knowledge: [fill in]
