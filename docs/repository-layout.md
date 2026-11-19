@@ -19,11 +19,12 @@ loregrid/
 │   ├── examples/        Fictional example trees
 │   ├── templates/       Starter templates to copy
 │   └── compatibility/   V1 fixture used to test migration
+├── docs/                User guides, format references, architecture and project notes
 ├── schema/              JSON schemas for tree and public-catalog formats
 ├── tests/               Unit tests, browser workflows and visual fixtures
 ├── scripts/             Validation, migration, benchmark and customer-build commands
-├── docs/                User, format, privacy, publishing and architecture documentation
 ├── prompts/             Optional prompts for authoring tree JSON
+├── README.md            Project overview and first-run instructions
 ├── index.html           Vite development entry
 ├── package.json         Commands and development dependencies
 ├── LICENSE              Loregrid and preserved upstream MIT terms
@@ -34,6 +35,10 @@ The `data/` subfolders are source materials, not a user library. `public/trees/`
 reserved for deliberately published JSON trees listed by `public/tree-catalog.json`.
 The current catalog is empty. Personal or customer trees belong outside the source repo;
 at runtime, users add JSON files through the application.
+
+The documentation index is [`docs/README.md`](README.md). It groups the guides by
+audience and links to the source-of-truth pages. `docs/assets/` contains documentation
+images only; it is not application content.
 
 ## Customer delivery
 
