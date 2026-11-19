@@ -12,7 +12,9 @@ Licensed under the MIT License. The full license text remains in [`LICENSE`](LIC
 
 Copyright (c) 2026 SeoHyeon
 
-Loregrid's layered graph layout is a TypeScript adaptation of general Sugiyama-style stages studied in YART, including rank assignment, long-edge dummy nodes, barycentric crossing reduction, and compact placement. RimWorld-specific definitions, Harmony integration, game state, Unity rendering, and visual assets are not included.
+Loregrid reuses the following YART-owned interface textures from `Textures/YART/`: `NodePanel.png`, `NodePanelBorder.png`, `EdgeLine.png`, `GlowRadial.png`, `NoiseTile.png`, `Vignette.png`, `IconCheck.png`, `IconLock.png`, `IconPlay.png`, and `IconSwap.png`. The files are included in `src/assets/yart/` and bundled into the offline HTML.
+
+Loregrid's layered graph layout is a TypeScript adaptation of general Sugiyama-style stages studied in YART. The mapping covers rank budgeting and compaction (`src/core/rank-balancing.ts`), Fenwick crossing counts, median/transpose ordering, exact small-layer dynamic programming and bounded sifting (`src/core/crossing-layout.ts`), plus long-edge chain fitting, safe untangling and dummy-run separation (`src/core/chain-layout.ts`). `src/core/spring-layout.ts` adapts YART's `SpringRelaxY` and `SpringPavProject` methods for continuous web coordinates. Queue ordering/removal and modifier-click actions adapt `ResearchQueueManager` and `MainTabWindow_YART.Interaction`. General node/edge drawing behavior is adapted for Canvas and DOM. The layout is not byte-for-byte or coordinate-identical: it uses a generic single band, continuous coordinates, approximate capped path weights, and deterministic budgets for optional optimizations. RimWorld-specific definitions, Harmony integration, game state, Unity rendering, and RimWorld-owned visual assets are not included.
 
 YART is licensed under the MIT License:
 

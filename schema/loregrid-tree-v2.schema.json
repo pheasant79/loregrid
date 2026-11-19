@@ -7,6 +7,11 @@
   "additionalProperties": false,
   "properties": {
     "format": { "const": "loregrid/tree-v2" },
+    "paths": {
+      "type": "array",
+      "deprecated": true,
+      "description": "Legacy compatibility field. Loregrid ignores paths; use the flat tabs collection."
+    },
     "id": { "$ref": "#/$defs/id" },
     "title": { "$ref": "#/$defs/text" },
     "subtitle": { "type": "string", "maxLength": 500 },
@@ -27,6 +32,21 @@
           "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
           "order": { "type": "number" },
           "description": { "type": "string", "maxLength": 5000 }
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "order"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "title": { "$ref": "#/$defs/text" },
+          "titleEn": { "type": "string", "maxLength": 200 },
+          "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+          "order": { "type": "integer", "minimum": 0 }
         }
       }
     },
@@ -56,6 +76,11 @@
           "id": { "$ref": "#/$defs/id" },
           "title": { "$ref": "#/$defs/text" },
           "tabId": { "$ref": "#/$defs/id" },
+          "pathId": {
+            "$ref": "#/$defs/id",
+            "deprecated": true,
+            "description": "Legacy compatibility field. Loregrid ignores pathId."
+          },
           "kind": { "enum": ["topic", "optional", "milestone"] },
           "summary": { "type": "string", "maxLength": 10000 },
           "outcome": { "type": "string", "maxLength": 10000 },
@@ -68,6 +93,7 @@
             "properties": {
               "groupId": { "type": "string", "maxLength": 100 },
               "order": { "type": "number" },
+              "stageId": { "$ref": "#/$defs/id" },
               "stage": { "type": "number", "minimum": 0 }
             }
           }

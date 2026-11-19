@@ -5,42 +5,32 @@ import type {
   GraphViewNode,
   TreeDefinitionV2,
   TreeEdge,
+  TreeNode,
 } from './types';
+import { stageForNode, treeStageAssignments } from './stages';
 
-export const tabKey = (tabId: string): GraphKey => `tab:${tabId}`;
-export const tabIdFromKey = (key: GraphKey): string | null => (key === 'all' ? null : key.slice(4));
+export const tabKey = (tabId: string): GraphKey => `tab:${encodeURIComponent(tabId)}`;
+export const tabIdFromKey = (key: GraphKey): string | null => key.startsWith('tab:') ? decodeURIComponent(key.slice(4)) : null;
 
-export function buildGraphView(tree: TreeDefinitionV2, key: GraphKey): GraphView {
+export function buildGraphView(tree: TreeDefinitionV2, key: GraphKey, presetTabIds?: readonly string[]): GraphView {
+  const effectiveStages = treeStageAssignments(tree);
+  const selectedTab = key.startsWith('tab:') ? decodeURIComponent(key.slice(4)) : null;
   if (key === 'all') {
     return {
       key,
-      nodes: tree.nodes.map((node) => ({
-        viewId: node.id,
-        nodeId: node.id,
-        title: node.title,
-        tabId: node.tabId,
-        kind: 'real',
-        nodeKind: node.kind ?? 'topic',
-        layout: node.layout,
-      })),
+      nodes: tree.nodes.map((node) => viewNode(tree, node, effectiveStages)),
       edges: tree.edges.map((edge) => viewEdge(edge, edge.source, edge.target)),
     };
   }
 
-  const tabId = tabIdFromKey(key);
-  if (!tabId) throw new Error(`Invalid graph key ${key}.`);
-  const included = new Set(tree.nodes.filter((node) => node.tabId === tabId).map((node) => node.id));
+  const presetTabs = key.startsWith('preset:') && presetTabIds ? new Set(presetTabIds) : null;
+  if (!selectedTab && !presetTabs) throw new Error(`Invalid graph key ${key}.`);
+  const included = new Set(tree.nodes.filter((node) =>
+    (!selectedTab || node.tabId === selectedTab) && (!presetTabs || presetTabs.has(node.tabId)),
+  ).map((node) => node.id));
   const nodes: GraphViewNode[] = tree.nodes
     .filter((node) => included.has(node.id))
-    .map((node) => ({
-      viewId: node.id,
-      nodeId: node.id,
-      title: node.title,
-      tabId: node.tabId,
-      kind: 'real',
-      nodeKind: node.kind ?? 'topic',
-      layout: node.layout,
-    }));
+    .map((node) => viewNode(tree, node, effectiveStages));
   const edges: GraphViewEdge[] = [];
   const proxies = new Map<string, string>();
   const nodeById = new Map(tree.nodes.map((node) => [node.id, node]));
@@ -57,16 +47,20 @@ export function buildGraphView(tree: TreeDefinitionV2, key: GraphKey): GraphView
     if (!sourceNode) continue;
     let proxyId = proxies.get(edge.source);
     if (!proxyId) {
-      proxyId = `proxy:${tabId}:${edge.source}`;
+      proxyId = `proxy:${key.startsWith('tab:') ? `tab:${selectedTab}` : encodeURIComponent(key)}:${edge.source}`;
       proxies.set(edge.source, proxyId);
       nodes.push({
         viewId: proxyId,
         nodeId: sourceNode.id,
         title: sourceNode.title,
-        tabId,
+        tabId: selectedTab ?? sourceNode.tabId,
         kind: 'proxy',
         nodeKind: sourceNode.kind ?? 'topic',
         targetTabId: sourceNode.tabId,
+        stageId: stageMeta(tree, sourceNode).id,
+        stageOrder: stageMeta(tree, sourceNode).order,
+        effectiveStageId: effectiveStages.get(sourceNode.id)?.id,
+        effectiveStageOrder: effectiveStages.get(sourceNode.id)?.order,
         layout: sourceNode.layout,
       });
     }
@@ -74,6 +68,38 @@ export function buildGraphView(tree: TreeDefinitionV2, key: GraphKey): GraphView
   }
 
   return { key, nodes, edges };
+}
+
+function viewNode(
+  tree: TreeDefinitionV2,
+  node: TreeNode,
+  effectiveStages: Map<string, { id: string; order: number }>,
+): GraphViewNode {
+  const stage = stageMeta(tree, node);
+  const effectiveStage = effectiveStages.get(node.id);
+  return {
+    viewId: node.id,
+    nodeId: node.id,
+    title: node.title,
+    tabId: node.tabId,
+    kind: 'real',
+    nodeKind: node.kind ?? 'topic',
+    stageId: stage.id,
+    stageOrder: stage.order,
+    effectiveStageId: effectiveStage?.id,
+    effectiveStageOrder: effectiveStage?.order,
+    layout: node.layout,
+  };
+}
+
+function stageMeta(tree: TreeDefinitionV2, node: Pick<TreeNode, 'layout'>): { id?: string; order?: number } {
+  const stage = stageForNode(tree, node);
+  if (stage) return { id: stage.id, order: stage.order };
+  const legacy = node.layout?.stage;
+  if (typeof legacy === 'number' && Number.isFinite(legacy)) {
+    return { id: `legacy-stage-${legacy}`, order: legacy };
+  }
+  return {};
 }
 
 function viewEdge(edge: TreeEdge, source: string, target: string): GraphViewEdge {
@@ -92,15 +118,22 @@ export function requiredAncestors(tree: TreeDefinitionV2, nodeId: string): strin
   tree.edges.filter((edge) => edge.type === 'required').forEach((edge) => incoming.get(edge.target)?.push(edge.source));
   const result: string[] = [];
   const visited = new Set<string>();
-  const visit = (id: string): void => {
-    for (const prerequisite of incoming.get(id) ?? []) {
-      if (visited.has(prerequisite)) continue;
-      visited.add(prerequisite);
-      visit(prerequisite);
-      result.push(prerequisite);
+  const stack = [{ id: nodeId, index: 0 }];
+  visited.add(nodeId);
+  while (stack.length) {
+    const frame = stack[stack.length - 1]!;
+    const prerequisites = incoming.get(frame.id) ?? [];
+    if (frame.index >= prerequisites.length) {
+      stack.pop();
+      if (frame.id !== nodeId) result.push(frame.id);
+      continue;
     }
-  };
-  visit(nodeId);
+    const id = prerequisites[frame.index++]!;
+    if (!visited.has(id)) {
+      visited.add(id);
+      stack.push({ id, index: 0 });
+    }
+  }
   return result;
 }
 

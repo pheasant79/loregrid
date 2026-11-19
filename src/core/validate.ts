@@ -22,6 +22,8 @@ export function validateTree(tree: TreeDefinitionV2): ValidationIssue[] {
   if (tree.nodes.length === 0) error('nodes.empty', 'At least one node is required.', 'nodes');
 
   const tabIds = uniqueIds(tree.tabs, 'tabs', error);
+  const stageIds = uniqueIds(tree.stages ?? [], 'stages', error);
+  uniqueIds(tree.stages ?? [], 'stages', error);
   const resourceIds = uniqueIds(tree.resources, 'resources', error);
   const nodeIds = uniqueIds(tree.nodes, 'nodes', error);
   uniqueIds(tree.edges, 'edges', error);
@@ -32,6 +34,19 @@ export function validateTree(tree: TreeDefinitionV2): ValidationIssue[] {
     if ((tab.description?.length ?? 0) > MAX_TEXT) error('tab.description.length', `Tab description exceeds ${MAX_TEXT} characters.`, `tabs[${index}].description`);
     if (tab.color && !/^#[0-9a-f]{6}$/i.test(tab.color)) {
       error('tab.color', 'Tab color must be a six-digit hex color.', `tabs[${index}].color`);
+    }
+  });
+
+  tree.stages?.forEach((stage, index) => {
+    if (!stage.title.trim()) error('stage.title', 'Stage title is required.', `stages[${index}].title`);
+    if (stage.title.length > MAX_TITLE) error('stage.title.length', `Stage title exceeds ${MAX_TITLE} characters.`, `stages[${index}].title`);
+    if ((stage.titleEn?.length ?? 0) > MAX_TITLE) error('stage.titleEn.length', `Stage title exceeds ${MAX_TITLE} characters.`, `stages[${index}].titleEn`);
+    if (!Number.isInteger(stage.order) || stage.order < 0) error('stage.order', 'Stage order must be a non-negative integer.', `stages[${index}].order`);
+    if (stage.color && !/^#[0-9a-f]{6}$/i.test(stage.color)) {
+      error('stage.color', 'Stage color must be a six-digit hex color.', `stages[${index}].color`);
+    }
+    if (tree.stages!.slice(0, index).some((other) => other.order === stage.order)) {
+      error('stage.ambiguous', 'Stage order must be unique within a tree.', `stages[${index}]`);
     }
   });
 
@@ -54,6 +69,12 @@ export function validateTree(tree: TreeDefinitionV2): ValidationIssue[] {
       if (tag.length > 100) error('node.tag.length', 'Node tag exceeds 100 characters.', `nodes[${index}].tags[${tagIndex}]`);
     });
     if (!tabIds.has(node.tabId)) error('node.tab', `Unknown tab ${node.tabId}.`, `nodes[${index}].tabId`);
+    if (node.layout?.stageId && !stageIds.has(node.layout.stageId)) {
+      error('node.stage', `Unknown stage ${node.layout.stageId}.`, `nodes[${index}].layout.stageId`);
+    }
+    if (node.layout?.stage !== undefined && (!Number.isFinite(node.layout.stage) || node.layout.stage < 0)) {
+      error('node.stage.order', 'Legacy stage hint must be a non-negative number.', `nodes[${index}].layout.stage`);
+    }
     node.resourceIds?.forEach((resourceId) => {
       if (!resourceIds.has(resourceId)) {
         error('node.resource', `Unknown resource ${resourceId}.`, `nodes[${index}].resourceIds`);
@@ -102,24 +123,26 @@ export function findRequiredCycle(tree: TreeDefinitionV2): string[] {
   const stack: string[] = [];
   let result: string[] = [];
 
-  const visit = (id: string): boolean => {
-    state.set(id, 1);
-    stack.push(id);
-    for (const next of adjacency.get(id) ?? []) {
-      if (state.get(next) === 1) {
-        const start = stack.indexOf(next);
-        result = [...stack.slice(start), next];
-        return true;
-      }
-      if (!state.get(next) && visit(next)) return true;
-    }
-    stack.pop();
-    state.set(id, 2);
-    return false;
-  };
-
   for (const node of tree.nodes) {
-    if (!state.get(node.id) && visit(node.id)) break;
+    if (state.has(node.id)) continue;
+    const frames = [{ id: node.id, index: 0 }];
+    state.set(node.id, 1); stack.push(node.id);
+    while (frames.length) {
+      const frame = frames[frames.length - 1]!;
+      const children = adjacency.get(frame.id) ?? [];
+      if (frame.index === children.length) {
+        state.set(frame.id, 2); frames.pop(); stack.pop();
+        continue;
+      }
+      const next = children[frame.index++]!;
+      if (state.get(next) === 1) {
+        result = [...stack.slice(stack.indexOf(next)), next];
+        return result;
+      }
+      if (!state.has(next)) {
+        state.set(next, 1); stack.push(next); frames.push({ id: next, index: 0 });
+      }
+    }
   }
   return result;
 }

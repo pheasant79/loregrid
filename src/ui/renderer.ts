@@ -1,6 +1,11 @@
-import type { LayoutNode, LayoutResult, ProgressV2, TreeDefinitionV2 } from '../core/types';
+import type { LayoutNode, LayoutResult, ProgressV2, TreeDefinitionV2, TreeNode } from '../core/types';
 import { statusOf } from '../core/progress';
+import { chooseLanguage, type Language } from '../core/i18n';
 import { SpatialIndex } from './spatial-index';
+import { DependencyFocus } from '../core/focus';
+import { computeStageBands, stageBandAtX, stageColor, type StageBand } from '../core/stages';
+import { distributeEdgePorts } from './edge-routing';
+import edgeLineUrl from '../assets/yart/EdgeLine.png';
 
 export interface ViewTransform {
   x: number;
@@ -9,7 +14,8 @@ export interface ViewTransform {
 }
 
 interface RendererCallbacks {
-  onNodeClick: (node: LayoutNode) => void;
+  onNodeClick: (node: LayoutNode, event: MouseEvent) => void;
+  onNodeContextMenu: (node: LayoutNode, event: MouseEvent) => void;
   onViewChange: (view: ViewTransform) => void;
 }
 
@@ -21,15 +27,26 @@ export class GraphRenderer {
   private minimapContext: CanvasRenderingContext2D;
   private layout: LayoutResult | null = null;
   private tree: TreeDefinitionV2 | null = null;
+  private treeNodeById = new Map<string, TreeNode>();
+  private language: Language = 'en';
   private progress: ProgressV2 | null = null;
   private selectedId: string | null = null;
   private highlightedId: string | null = null;
+  private hoveredId: string | null = null;
+  private focusIndex: DependencyFocus | null = null;
+  private focusedNodes = new Set<string>();
+  private queuePositions = new Map<string, number>();
   private showRecommended = false;
   private view: ViewTransform = { x: 0, y: 0, scale: 0.8 };
   private frame = 0;
   private resizeObserver: ResizeObserver;
   private callbacks: RendererCallbacks;
   private spatialIndex = new SpatialIndex([]);
+  private renderedNodes = new Map<string, HTMLButtonElement>();
+  private minimapBase = document.createElement('canvas');
+  private minimapDirty = true;
+  private edgeTextureBands: Array<{ width: number; alpha: number }> = [];
+  private stageBands: StageBand[] = [];
 
   constructor(private viewport: HTMLElement, callbacks: RendererCallbacks) {
     this.callbacks = callbacks;
@@ -46,6 +63,30 @@ export class GraphRenderer {
     if (!context || !minimapContext) throw new Error('Canvas 2D is unavailable.');
     this.context = context;
     this.minimapContext = minimapContext;
+    const edgeTexture = new Image();
+    edgeTexture.onload = () => {
+      // EdgeLine is a constant white strip with a symmetric alpha cross-section.
+      // Read it once and reproduce that profile with whole-path strokes, avoiding segment seams.
+      const strip = document.createElement('canvas');
+      strip.width = edgeTexture.naturalWidth;
+      strip.height = edgeTexture.naturalHeight;
+      const stripContext = strip.getContext('2d');
+      if (!stripContext) return;
+      stripContext.drawImage(edgeTexture, 0, 0);
+      const pixels = stripContext.getImageData(0, 0, strip.width, strip.height).data;
+      let previous = 0;
+      for (let row = 0; row < strip.height / 2; row++) {
+        const alpha = pixels[(row * strip.width + Math.floor(strip.width / 2)) * 4 + 3]! / 255;
+        if (alpha <= previous) continue;
+        this.edgeTextureBands.push({
+          width: (strip.height - row * 2) / strip.height,
+          alpha,
+        });
+        previous = alpha;
+      }
+      this.requestDraw();
+    };
+    edgeTexture.src = edgeLineUrl;
     viewport.append(this.canvas, this.nodeLayer, this.minimap);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(viewport);
@@ -53,26 +94,55 @@ export class GraphRenderer {
   }
 
   setData(layout: LayoutResult, tree: TreeDefinitionV2, progress: ProgressV2): void {
+    this.clearRenderedNodes();
+    this.minimapDirty = true;
     this.layout = layout;
+    if (this.tree !== tree) {
+      this.focusIndex = new DependencyFocus(tree);
+      this.treeNodeById = new Map(tree.nodes.map((node) => [node.id, node]));
+    }
+    this.language = chooseLanguage(tree.language, progress.ui?.language);
+    this.stageBands = computeStageBands(layout, tree, progress, this.language);
     this.tree = tree;
+    this.hoveredId = null;
+    this.updateFocus();
     this.progress = progress;
+    this.queuePositions = new Map(progress.queue.map((id, index) => [id, index + 1]));
     this.spatialIndex = new SpatialIndex(layout.nodes);
     this.requestDraw();
   }
 
   setProgress(progress: ProgressV2): void {
+    this.clearRenderedNodes();
+    this.minimapDirty = true;
     this.progress = progress;
+    if (this.layout && this.tree) this.stageBands = computeStageBands(this.layout, this.tree, progress, this.language);
+    this.queuePositions = new Map(progress.queue.map((id, index) => [id, index + 1]));
+    this.requestDraw();
+  }
+
+  setLanguage(language: Language): void {
+    if (this.language === language) return;
+    this.language = language;
+    if (this.layout && this.tree && this.progress) this.stageBands = computeStageBands(this.layout, this.tree, this.progress, language);
+    this.clearRenderedNodes();
     this.requestDraw();
   }
 
   setSelection(nodeId: string | null): void {
     this.selectedId = nodeId;
+    this.updateFocus();
     this.requestDraw();
   }
 
   setHighlight(nodeId: string | null): void {
     this.highlightedId = nodeId;
     this.requestDraw();
+  }
+
+  private updateFocus(): void {
+    const id = this.hoveredId ?? this.selectedId;
+    this.focusedNodes = id ? this.focusIndex?.connected(id) ?? new Set([id]) : new Set();
   }
 
   setRecommendedVisible(visible: boolean): void {
@@ -108,7 +178,7 @@ export class GraphRenderer {
     if (!this.layout) return;
     const width = Math.max(1, this.viewport.clientWidth - padding * 2);
     const height = Math.max(1, this.viewport.clientHeight - padding * 2);
-    const scale = clamp(Math.min(width / this.layout.width, height / this.layout.height), 0.08, 1.25);
+    const scale = clamp(Math.min(width / this.layout.width, height / this.layout.height), 0.08, 1);
     this.setView({
       scale,
       x: (this.viewport.clientWidth - this.layout.width * scale) / 2,
@@ -155,6 +225,11 @@ export class GraphRenderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, this.viewport.clientWidth, this.viewport.clientHeight);
     drawGrid(ctx, this.viewport.clientWidth, this.viewport.clientHeight, this.view);
+    const relationToggle = this.viewport.querySelector<HTMLElement>('#toggleRelations');
+    const relationWidth = relationToggle && getComputedStyle(relationToggle).display !== 'none'
+      ? relationToggle.offsetWidth
+      : 0;
+    drawStageBands(ctx, this.stageBands, this.view, this.viewport.clientWidth, this.viewport.clientHeight, relationWidth);
     ctx.save();
     ctx.translate(this.view.x, this.view.y);
     ctx.scale(this.view.scale, this.view.scale);
@@ -165,26 +240,150 @@ export class GraphRenderer {
   }
 
   private drawEdges(ctx: CanvasRenderingContext2D, layout: LayoutResult, tree: TreeDefinitionV2): void {
-    const tabColors = new Map(tree.tabs.map((tab) => [tab.id, tab.color ?? '#6687a6']));
     const nodeByViewId = new Map(layout.nodes.map((node) => [node.viewId, node]));
+    const visibleEdges = layout.edges.filter((edge) =>
+      edge.type !== 'related' && (edge.type !== 'recommended' || this.showRecommended));
+    const ports = distributeEdgePorts(layout.nodes, visibleEdges);
+    const selectedEdges = visibleEdges.map((edge) => {
+      const source = nodeByViewId.get(edge.source);
+      const target = nodeByViewId.get(edge.target);
+      return {
+        edge,
+        source,
+        target,
+        selected: Boolean(source && target && this.focusedNodes.has(source.nodeId) && this.focusedNodes.has(target.nodeId)),
+      };
+    }).sort((left, right) => Number(right.selected) - Number(left.selected));
+    const drawnRequiredSegments = new Set<string>();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const edge of layout.edges) {
-      if (edge.type === 'recommended' && !this.showRecommended) continue;
-      if (edge.type === 'related') continue;
-      const target = nodeByViewId.get(edge.target);
-      ctx.beginPath();
-      edge.points.forEach((point, index) => index === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y));
-      const selected = target?.nodeId === this.selectedId || nodeByViewId.get(edge.source)?.nodeId === this.selectedId;
-      ctx.strokeStyle = selected ? '#f5c66f' : edge.type === 'recommended' ? '#71859a' : tabColors.get(target?.tabId ?? '') ?? '#657a91';
-      ctx.globalAlpha = selected ? 1 : 0.68;
-      ctx.lineWidth = selected ? 2.4 : edge.type === 'recommended' ? 1.2 : 1.65;
+    for (const { edge, source, target, selected } of selectedEdges) {
+      const edgePorts = ports.get(edge.id);
+      const waypoints = edge.points.map((point, index) => ({
+        ...point,
+        y: index === 0 ? edgePorts?.sourceY ?? point.y
+          : index === edge.points.length - 1 ? edgePorts?.targetY ?? point.y
+            : point.y,
+      }));
+      const first = waypoints[0];
+      const last = waypoints.at(-1);
+      if (!first || !last) continue;
+      const margin = 100 / this.view.scale;
+      const left = -this.view.x / this.view.scale - margin;
+      const top = -this.view.y / this.view.scale - margin;
+      const right = left + this.viewport.clientWidth / this.view.scale + 2 * margin;
+      const bottom = top + this.viewport.clientHeight / this.view.scale + 2 * margin;
+      if (waypoints.every((point) => point.x < left) || waypoints.every((point) => point.x > right)
+        || waypoints.every((point) => point.y < top) || waypoints.every((point) => point.y > bottom)) continue;
+      const dx = last.x - first.x;
+      const cap = Math.abs(dx) * 0.9;
+      let startOffset = Math.max(cap * 0.5, 30);
+      let endOffset = Math.max(cap * 0.5, 30);
+      const sum = startOffset + endOffset;
+      if (sum > cap && cap > 0) { startOffset *= cap / sum; endOffset *= cap / sum; }
+      const direction = Math.sign(dx || 1);
+      const neutralColor = edge.type === 'recommended' ? '#71859a' : '#687b94';
+      const edgeAlpha = selected ? 0.92 : 0.72;
+      const lineWidth = selected ? Math.max(2 / this.view.scale, 3) : edge.type === 'recommended' ? Math.max(1.2 / this.view.scale, 1.3) : Math.max(1.5 / this.view.scale, 2);
+      ctx.lineWidth = lineWidth;
       ctx.setLineDash(edge.type === 'recommended' ? [7, 7] : []);
-      ctx.stroke();
+      const stageColorAtEdgeX = (x: number): string => {
+        if (edge.type === 'recommended') return neutralColor;
+        const transition = this.stageBands.slice(1).find((band) => Math.abs(x - band.left) < 42);
+        let color = this.stageColorAtX(x, tree);
+        if (transition) {
+          const index = this.stageBands.indexOf(transition);
+          const previous = this.stageBands[index - 1];
+          if (previous) {
+            const amount = clamp((x - (transition.left - 42)) / 84, 0, 1);
+            color = blendHex(previous.color, transition.color, amount);
+          }
+        }
+        return blendHex(color, neutralColor, 0.14);
+      };
+      const strokeCurve = (
+        from: { x: number; y: number },
+        control1: { x: number; y: number },
+        control2: { x: number; y: number },
+        to: { x: number; y: number },
+      ) => {
+        const segmentKey = edge.type === 'required'
+          ? [from, control1, control2, to].map((point) => `${Math.round(point.x * 1000)}:${Math.round(point.y * 1000)}`).join('|')
+          : undefined;
+        if (segmentKey && drawnRequiredSegments.has(segmentKey)) return;
+        if (segmentKey) drawnRequiredSegments.add(segmentKey);
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
+        ctx.strokeStyle = selected ? '#d5e2ef' : makeEdgeGradient(ctx, from.x, to.x, stageColorAtEdgeX, this.stageBands);
+        if (this.edgeTextureBands.length && edge.type === 'required') {
+          let previousAlpha = 0;
+          for (const band of this.edgeTextureBands) {
+            const targetAlpha = band.alpha * edgeAlpha;
+            ctx.globalAlpha = (targetAlpha - previousAlpha) / (1 - previousAlpha);
+            ctx.lineWidth = lineWidth * band.width;
+            ctx.stroke();
+            previousAlpha = targetAlpha;
+          }
+        } else {
+          ctx.globalAlpha = edgeAlpha;
+          ctx.stroke();
+        }
+      };
+      const strokeRecommended = (
+        from: { x: number; y: number },
+        control1: { x: number; y: number },
+        control2: { x: number; y: number },
+        to: { x: number; y: number },
+      ) => {
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
+        ctx.strokeStyle = selected ? '#d5e2ef' : neutralColor;
+        ctx.globalAlpha = edgeAlpha;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+      };
+
+      if (edge.type === 'recommended') {
+        if (waypoints.length > 2) {
+          for (let index = 1; index < waypoints.length; index++) {
+            const from = waypoints[index - 1]!;
+            const to = waypoints[index]!;
+            const bend = (to.x - from.x) / 2;
+            strokeRecommended(from, { x: from.x + bend, y: from.y }, { x: to.x - bend, y: to.y }, to);
+          }
+        } else {
+          strokeRecommended(
+            first,
+            { x: first.x + startOffset * direction, y: first.y },
+            { x: last.x - endOffset * direction, y: last.y },
+            last,
+          );
+        }
+      } else if (waypoints.length > 2) {
+        for (let index = 1; index < waypoints.length; index++) {
+          const from = waypoints[index - 1]!;
+          const to = waypoints[index]!;
+          const bend = (to.x - from.x) / 2;
+          strokeCurve(from, { x: from.x + bend, y: from.y }, { x: to.x - bend, y: to.y }, to);
+        }
+      } else {
+        strokeCurve(
+          first,
+          { x: first.x + startOffset * direction, y: first.y },
+          { x: last.x - endOffset * direction, y: last.y },
+          last,
+        );
+      }
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
-      if (edge.points.length > 1) drawArrow(ctx, edge.points.at(-2)!, edge.points.at(-1)!, ctx.strokeStyle as string);
     }
+  }
+
+  private stageColorAtX(x: number, tree: TreeDefinitionV2): string {
+    const band = stageBandAtX(this.stageBands, x);
+    return band ? stageColor(tree, { stageId: band.stageId }) : '#687b94';
   }
 
   private drawNodes(layout: LayoutResult, tree: TreeDefinitionV2, progress: ProgressV2): void {
@@ -193,23 +392,47 @@ export class GraphRenderer {
     const worldRight = worldLeft + this.viewport.clientWidth / this.view.scale + 520;
     const worldBottom = worldTop + this.viewport.clientHeight / this.view.scale + 360;
     const visible = this.spatialIndex.query({ left: worldLeft, top: worldTop, right: worldRight, bottom: worldBottom });
-    const tabColors = new Map(tree.tabs.map((tab) => [tab.id, tab.color ?? '#6687a6']));
     const fragment = document.createDocumentFragment();
-    this.nodeLayer.textContent = '';
+    const visibleIds = new Set(visible.map((node) => node.viewId));
+    for (const [id, element] of this.renderedNodes) {
+      if (!visibleIds.has(id)) { element.remove(); this.renderedNodes.delete(id); }
+    }
     this.nodeLayer.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
-    this.nodeLayer.className = `node-layer ${this.view.scale < 0.38 ? 'lod-low' : this.view.scale < 0.68 ? 'lod-medium' : 'lod-high'}`;
+    this.nodeLayer.className = `node-layer ${this.view.scale < 0.38 ? 'lod-low' : this.view.scale < 0.68 ? 'lod-medium' : this.view.scale >= 1.1 ? 'lod-rich' : 'lod-high'}`;
+    const richProgress = clamp((this.view.scale - 1.1) / 0.2, 0, 1);
+    this.nodeLayer.style.setProperty('--rich-opacity', String(richProgress));
 
     visible.forEach((node) => {
+      const richCard = this.view.scale >= 1.1 && node.kind !== 'proxy';
+      const richExtraHeight = richCard ? 16 * richProgress : 0;
+      const existing = this.renderedNodes.get(node.viewId);
+      if (existing) {
+        existing.style.top = `${node.y - richExtraHeight / 2}px`;
+        existing.style.height = `${node.height + richExtraHeight}px`;
+        existing.classList.toggle('is-selected', node.nodeId === this.selectedId);
+        existing.classList.toggle('is-highlighted', node.nodeId === this.highlightedId);
+        existing.classList.toggle('is-focused', this.focusedNodes.has(node.nodeId));
+        existing.classList.toggle('is-unfocused', Boolean(this.hoveredId ?? this.selectedId) && !this.focusedNodes.has(node.nodeId));
+        return;
+      }
       const button = document.createElement('button');
+      this.renderedNodes.set(node.viewId, button);
       button.type = 'button';
       button.className = `graph-node ${node.kind === 'proxy' ? 'is-proxy' : ''} status-${statusOf(progress, tree, node.nodeId)}`;
       if (node.nodeId === this.selectedId) button.classList.add('is-selected');
       if (node.nodeId === this.highlightedId) button.classList.add('is-highlighted');
+      if (this.focusedNodes.has(node.nodeId)) button.classList.add('is-focused');
+      if ((this.hoveredId ?? this.selectedId) && !this.focusedNodes.has(node.nodeId)) button.classList.add('is-unfocused');
       button.style.left = `${node.x}px`;
-      button.style.top = `${node.y}px`;
+      button.style.top = `${node.y - richExtraHeight / 2}px`;
       button.style.width = `${node.width}px`;
-      button.style.height = `${node.height}px`;
-      button.style.setProperty('--node-accent', tabColors.get(node.kind === 'proxy' ? node.targetTabId ?? node.tabId : node.tabId) ?? '#6687a6');
+      button.style.height = `${node.height + richExtraHeight}px`;
+      const nodeColor = stageColor(tree, {
+        stageId: node.effectiveStageId ?? node.stageId,
+        stageOrder: node.effectiveStageOrder ?? node.stageOrder,
+      });
+      button.style.setProperty('--node-accent', nodeColor);
+      button.style.setProperty('--stage-color', nodeColor);
       button.dataset.nodeId = node.nodeId;
       button.setAttribute('aria-label', node.title);
 
@@ -217,12 +440,19 @@ export class GraphRenderer {
       const icon = document.createElement('span');
       icon.className = 'node-icon';
       icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = node.kind === 'proxy' ? '↗' : node.nodeKind === 'milestone' ? '✦' : node.nodeKind === 'optional' ? '○' : '◇';
+      icon.textContent = status === 'completed' ? '✓'
+        : status === 'ready' ? '▶'
+          : node.kind === 'proxy' ? '↗'
+            : node.nodeKind === 'milestone' ? '✦' : node.nodeKind === 'optional' ? '○' : '◇';
       const heading = document.createElement('span');
       heading.className = 'node-heading';
       const category = document.createElement('span');
       category.className = 'node-category';
-      category.textContent = node.kind === 'proxy' ? 'LINKED PAGE' : (node.nodeKind ?? 'topic').toUpperCase();
+      category.textContent = node.kind === 'proxy'
+        ? this.language === 'en' ? 'LINKED PAGE' : '关联分页'
+        : this.language === 'en'
+          ? ({ milestone: 'MILESTONE', optional: 'OPTIONAL', topic: 'TOPIC' }[node.nodeKind ?? 'topic'])
+          : ({ milestone: '里程碑', optional: '可选', topic: '主题' }[node.nodeKind ?? 'topic']);
       const state = document.createElement('span');
       state.className = 'node-state';
       state.setAttribute('aria-hidden', 'true');
@@ -231,6 +461,10 @@ export class GraphRenderer {
       const title = document.createElement('span');
       title.className = 'node-title';
       title.textContent = node.title;
+      const richDetail = document.createElement('span');
+      richDetail.className = 'node-rich-detail';
+      const sourceNode = this.treeNodeById.get(node.nodeId);
+      richDetail.textContent = (sourceNode?.summary || sourceNode?.outcome || sourceNode?.tags?.slice(0, 2).join(' · ') || '').slice(0, 96);
       const footer = document.createElement('span');
       footer.className = 'node-footer';
       const track = document.createElement('span');
@@ -239,16 +473,49 @@ export class GraphRenderer {
       if (status === 'completed') fill.style.width = '100%';
       track.append(fill);
       const footerLabel = document.createElement('span');
-      footerLabel.textContent = status === 'completed' ? 'COMPLETED' : status === 'ready' ? 'AVAILABLE' : 'PREREQUISITES';
+      footerLabel.textContent = this.language === 'en'
+        ? status === 'completed' ? 'COMPLETED' : status === 'ready' ? 'READY' : 'PREREQUISITES'
+        : status === 'completed' ? '已完成' : status === 'ready' ? '可开始' : '需前置';
       footer.append(track, footerLabel);
-      button.append(icon, heading, title, footer);
+      button.append(icon, heading, title, richDetail, footer);
+      const queuePosition = this.queuePositions.get(node.nodeId);
+      if (queuePosition) {
+        const badge = document.createElement('span');
+        badge.className = 'node-queue-badge';
+        badge.textContent = String(queuePosition);
+        button.classList.add('is-queued');
+        button.dataset.queuePosition = String(queuePosition);
+        button.append(badge);
+      }
+      button.addEventListener('pointerenter', () => {
+        if (this.view.scale < .4) return;
+        this.hoveredId = node.nodeId;
+        this.updateFocus();
+        this.requestDraw();
+      });
+      button.addEventListener('pointerleave', () => {
+        if (this.hoveredId !== node.nodeId) return;
+        this.hoveredId = null;
+        this.updateFocus();
+        this.requestDraw();
+      });
       button.addEventListener('click', (event) => {
         event.stopPropagation();
-        this.callbacks.onNodeClick(node);
+        this.callbacks.onNodeClick(node, event);
+      });
+      button.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.callbacks.onNodeContextMenu(node, event);
       });
       fragment.append(button);
     });
     this.nodeLayer.append(fragment);
+  }
+
+  private clearRenderedNodes(): void {
+    this.renderedNodes.clear();
+    this.nodeLayer.replaceChildren();
   }
 
   private drawMinimap(layout: LayoutResult, tree: TreeDefinitionV2, progress: ProgressV2): void {
@@ -256,16 +523,22 @@ export class GraphRenderer {
     const width = this.minimap.width;
     const height = this.minimap.height;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#080e14';
-    ctx.fillRect(0, 0, width, height);
     const scale = Math.min((width - 12) / layout.width, (height - 12) / layout.height);
-    const colors = new Map(tree.tabs.map((tab) => [tab.id, tab.color ?? '#6687a6']));
-    layout.nodes.forEach((node) => {
-      ctx.globalAlpha = statusOf(progress, tree, node.nodeId) === 'completed' ? 0.95 : 0.52;
-      ctx.fillStyle = colors.get(node.kind === 'proxy' ? node.targetTabId ?? '' : node.tabId) ?? '#60758a';
-      ctx.fillRect(6 + node.x * scale, 6 + node.y * scale, Math.max(2, node.width * scale), Math.max(1, node.height * scale));
-    });
-    ctx.globalAlpha = 1;
+    if (this.minimapDirty) {
+      this.minimapBase.width = width; this.minimapBase.height = height;
+      const base = this.minimapBase.getContext('2d')!;
+      base.fillStyle = '#080e14'; base.fillRect(0, 0, width, height);
+      for (const node of layout.nodes) {
+        const completed = progress.completed[node.nodeId];
+        base.globalAlpha = completed ? .95 : .65;
+        base.fillStyle = completed
+          ? stageColor(tree, { stageId: node.effectiveStageId ?? node.stageId, stageOrder: node.effectiveStageOrder ?? node.stageOrder })
+          : '#53677f';
+        base.fillRect(6 + node.x * scale, 6 + node.y * scale, Math.max(2, node.width * scale), Math.max(1, node.height * scale));
+      }
+      this.minimapDirty = false;
+    }
+    ctx.drawImage(this.minimapBase, 0, 0);
     const worldX = -this.view.x / this.view.scale;
     const worldY = -this.view.y / this.view.scale;
     ctx.strokeStyle = '#f2c572';
@@ -277,7 +550,7 @@ export class GraphRenderer {
 function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: ViewTransform): void {
   const spacing = 42 * view.scale;
   if (spacing < 9) return;
-  ctx.strokeStyle = 'rgba(105, 145, 135, 0.075)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.018)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = ((view.x % spacing) + spacing) % spacing; x < width; x += spacing) {
@@ -288,7 +561,7 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
   }
   ctx.stroke();
   const majorSpacing = spacing * 5;
-  ctx.strokeStyle = 'rgba(105, 145, 135, 0.13)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
   ctx.beginPath();
   for (let x = ((view.x % majorSpacing) + majorSpacing) % majorSpacing; x < width; x += majorSpacing) {
     ctx.moveTo(x, 0); ctx.lineTo(x, height);
@@ -299,16 +572,98 @@ function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, 
   ctx.stroke();
 }
 
-function drawArrow(ctx: CanvasRenderingContext2D, from: { x: number; y: number }, to: { x: number; y: number }, color: string): void {
-  const angle = Math.atan2(to.y - from.y, to.x - from.x);
-  const size = 7;
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(to.x, to.y);
-  ctx.lineTo(to.x - Math.cos(angle - 0.55) * size, to.y - Math.sin(angle - 0.55) * size);
-  ctx.lineTo(to.x - Math.cos(angle + 0.55) * size, to.y - Math.sin(angle + 0.55) * size);
-  ctx.closePath();
-  ctx.fill();
+function drawStageBands(
+  ctx: CanvasRenderingContext2D,
+  bands: readonly StageBand[],
+  view: ViewTransform,
+  viewportWidth: number,
+  viewportHeight: number,
+  relationControlWidth: number,
+): void {
+  if (!bands.length) return;
+  ctx.save();
+  ctx.lineWidth = 1;
+  ctx.font = '600 11px Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  // Labels stay near the top edge; only one under the relation toggle is moved below it.
+  const labelY = 8;
+  const relationLeft = viewportWidth - 16 - relationControlWidth;
+  const relationRight = viewportWidth - 16;
+  const relationBottom = labelY + 35;
+  bands.forEach((band) => {
+    const left = band.left * view.scale + view.x;
+    const right = band.right * view.scale + view.x;
+    if (right <= 0 || left >= viewportWidth || right <= left) return;
+    const gradient = ctx.createLinearGradient(left, 0, right, 0);
+    gradient.addColorStop(0, rgba(band.color, 0.075));
+    gradient.addColorStop(1, rgba(band.color, 0));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(Math.max(0, left), 0, Math.min(viewportWidth, right) - Math.max(0, left), viewportHeight);
+
+    ctx.strokeStyle = rgba('#536579', 0.34);
+    ctx.beginPath();
+    ctx.moveTo(Math.round(left) + 0.5, 0);
+    ctx.lineTo(Math.round(left) + 0.5, viewportHeight);
+    ctx.stroke();
+
+    const visibleWidth = Math.min(viewportWidth, right) - Math.max(0, left);
+    if (visibleWidth >= 72) {
+      const labelX = Math.max(8, left + 10);
+      const rightEdge = Math.min(right, viewportWidth);
+      const labelMaxWidth = Math.max(0, rightEdge - labelX - 12);
+      ctx.fillStyle = band.color;
+      const labelWidth = Math.min(ctx.measureText(band.label).width, labelMaxWidth);
+      const overlapsRelationControl = relationControlWidth > 0
+        && labelX < relationRight && labelX + labelWidth > relationLeft;
+      ctx.fillText(band.label, labelX, overlapsRelationControl ? relationBottom + 6 : labelY, labelMaxWidth);
+    }
+  });
+  ctx.restore();
+}
+
+function rgba(hex: string, alpha: number): string {
+  const value = hex.replace('#', '');
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+}
+
+function blendHex(color: string, neutral: string, amount: number): string {
+  const parse = (value: string) => [1, 3, 5].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16));
+  const [red, green, blue] = parse(color);
+  const [neutralRed, neutralGreen, neutralBlue] = parse(neutral);
+  return `#${[red, green, blue].map((channel, index) => {
+    const target = [neutralRed, neutralGreen, neutralBlue][index]!;
+    return Math.round(channel! * (1 - amount) + target * amount).toString(16).padStart(2, '0');
+  }).join('')}`;
+}
+
+function makeEdgeGradient(
+  ctx: CanvasRenderingContext2D,
+  fromX: number,
+  toX: number,
+  colorAtX: (x: number) => string,
+  bands: readonly StageBand[],
+): CanvasGradient {
+  const left = Math.min(fromX, toX);
+  const right = Math.max(fromX, toX);
+  const end = right > left ? right : left + 1;
+  const gradient = ctx.createLinearGradient(left, 0, end, 0);
+  const stops = new Set([left, right]);
+  for (const band of bands.slice(1)) {
+    for (const x of [band.left - 42, band.left, band.left + 42]) {
+      if (x > left && x < right) stops.add(x);
+    }
+  }
+  const sorted = [...stops].sort((a, b) => a - b);
+  sorted.forEach((x) => gradient.addColorStop(
+    right > left ? (x - left) / (right - left) : 0,
+    colorAtX(x),
+  ));
+  if (right === left) gradient.addColorStop(1, colorAtX(left));
+  return gradient;
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));

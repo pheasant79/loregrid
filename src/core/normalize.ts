@@ -6,6 +6,7 @@ import {
   type TreeEdge,
   type TreeNode,
   type TreeResource,
+  type TreeStage,
   type TreeTab,
 } from './types';
 
@@ -31,7 +32,47 @@ const edgeId = (type: EdgeType, source: string, target: string, index: number): 
   return `edge-${type}-${(hash >>> 0).toString(36)}`;
 };
 
-function normalizeV2(input: UnknownRecord): TreeDefinitionV2 {
+function normalizeV2(input: UnknownRecord): NormalizationResult {
+  const treeId = text(input.id, 'untitled-tree');
+  const treeTitle = text(input.title, 'Untitled tree');
+  const warnings: string[] = [];
+  const rawStages: Array<TreeStage & { legacyScoped: boolean }> = asArray(input.stages).map((raw, index) => {
+    const stage = asRecord(raw);
+    return {
+      id: text(stage.id, `stage-${index}`),
+      title: text(stage.title, text(stage.label, `Stage ${index + 1}`)),
+      titleEn: text(stage.titleEn, text(stage.labelEn)) || undefined,
+      color: text(stage.color) || undefined,
+      order: number(stage.order) ?? index,
+      legacyScoped: Boolean(stage.tabId || stage.pathId),
+    };
+  });
+  const stages: TreeStage[] = [];
+  const stageIdMap = new Map<string, string>();
+  const usedStageIds = new Set<string>();
+  for (const order of [...new Set(rawStages.map((stage) => stage.order))].sort((a, b) => a - b)) {
+    const group = rawStages.filter((stage) => stage.order === order);
+    const titlePairs = new Set(group.map((stage) => `${stage.title}\u0000${stage.titleEn ?? ''}`));
+    const conflicts = titlePairs.size > 1;
+    const baseId = group.length === 1 ? group[0]!.id : `legacy-stage-${order}`;
+    let id = baseId;
+    for (let suffix = 2; usedStageIds.has(id); suffix++) id = `${baseId}-${suffix}`;
+    usedStageIds.add(id);
+    const colors = new Set(group.map((stage) => stage.color).filter((color): color is string => Boolean(color)));
+    stages.push({
+      id,
+      title: conflicts ? `阶段 ${order + 1}` : group[0]!.title,
+      titleEn: conflicts ? `Stage ${order + 1}` : group[0]!.titleEn,
+      color: colors.size === 1 ? [...colors][0] : undefined,
+      order,
+    });
+    group.forEach((stage) => stageIdMap.set(stage.id, id));
+    if (conflicts) {
+      warnings.push(`Legacy page-scoped names for stage ${order + 1} conflicted; they were consolidated to a neutral tree-wide label for review.`);
+    } else if (group.length > 1 || group.some((stage) => stage.legacyScoped)) {
+      warnings.push(`Legacy page-scoped definitions for stage ${order + 1} were consolidated to one tree-wide stage.`);
+    }
+  }
   const tabs: TreeTab[] = asArray(input.tabs).map((raw, index) => {
     const tab = asRecord(raw);
     return {
@@ -58,6 +99,9 @@ function normalizeV2(input: UnknownRecord): TreeDefinitionV2 {
     const node = asRecord(raw);
     const layout = asRecord(node.layout);
     const kind = text(node.kind);
+    const legacyStage = number(layout.stage);
+    const stageId = text(layout.stageId)
+      || (legacyStage !== undefined ? stages.find((stage) => stage.order === legacyStage)?.id : undefined);
     return {
       id: text(node.id, `node-${index + 1}`),
       title: text(node.title, text(node.name, text(node.id, `Node ${index + 1}`))),
@@ -71,7 +115,8 @@ function normalizeV2(input: UnknownRecord): TreeDefinitionV2 {
       layout: {
         groupId: text(layout.groupId) || undefined,
         order: number(layout.order),
-        stage: number(layout.stage),
+        stageId: stageId ? stageIdMap.get(stageId) ?? stageId : undefined,
+        stage: legacyStage,
       },
     };
   });
@@ -93,17 +138,21 @@ function normalizeV2(input: UnknownRecord): TreeDefinitionV2 {
   });
 
   return {
-    format: TREE_FORMAT,
-    id: text(input.id, 'untitled-tree'),
-    title: text(input.title, 'Untitled tree'),
-    subtitle: text(input.subtitle) || undefined,
-    description: text(input.description) || undefined,
-    version: text(input.version) || undefined,
-    language: text(input.language) || undefined,
-    tabs,
-    resources,
-    nodes,
-    edges: dedupeEdges(edges),
+    tree: {
+      format: TREE_FORMAT,
+      id: treeId,
+      title: treeTitle,
+      subtitle: text(input.subtitle) || undefined,
+      description: text(input.description) || undefined,
+      version: text(input.version) || undefined,
+      language: text(input.language) || undefined,
+      tabs,
+      stages,
+      resources,
+      nodes,
+      edges: dedupeEdges(edges),
+    },
+    warnings,
   };
 }
 
@@ -119,6 +168,12 @@ function migrateV1(input: UnknownRecord): TreeDefinitionV2 {
       order: index,
     };
   });
+  const stages: TreeStage[] = asArray(input.stages).map((raw, index) => ({
+    id: `legacy-stage-${index}`,
+    title: text(raw, `Stage ${index + 1}`),
+    order: index,
+  }));
+  const stageByOrder = new Map(stages.map((stage) => [stage.order, stage.id]));
 
   const resources: TreeResource[] = asArray(input.sources).map((raw, index) => {
     const source = asRecord(raw);
@@ -137,6 +192,7 @@ function migrateV1(input: UnknownRecord): TreeDefinitionV2 {
     const oldKind = text(node.kind);
     const startId = text(input.startId);
     const endId = text(input.endId);
+    const legacyStage = number(node.stage);
     return {
       id,
       title: text(node.name, id),
@@ -147,7 +203,10 @@ function migrateV1(input: UnknownRecord): TreeDefinitionV2 {
       caution: text(node.caution) || undefined,
       resourceIds: stringList(node.sourceIds),
       tags: [],
-      layout: { stage: number(node.stage) },
+      layout: {
+        stageId: legacyStage !== undefined ? stageByOrder.get(legacyStage) : undefined,
+        stage: legacyStage,
+      },
     };
   });
 
@@ -188,6 +247,7 @@ function migrateV1(input: UnknownRecord): TreeDefinitionV2 {
     version: text(input.version) || undefined,
     language: text(input.language) || undefined,
     tabs,
+    stages,
     resources,
     nodes,
     edges: dedupeEdges(edges),
@@ -207,7 +267,7 @@ function dedupeEdges(edges: TreeEdge[]): TreeEdge[] {
 export function normalizeTree(input: unknown): NormalizationResult {
   const record = asRecord(input);
   if (record.format === TREE_FORMAT) {
-    return { tree: normalizeV2(record), warnings: [] };
+    return normalizeV2(record);
   }
   if (record.format === 'learning-tech-tree/v1') {
     return {

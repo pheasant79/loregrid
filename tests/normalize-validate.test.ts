@@ -11,6 +11,8 @@ describe('tree normalization and validation', () => {
     expect(result.tree.format).toBe('loregrid/tree-v2');
     expect(result.tree.tabs).toHaveLength(1);
     expect(result.tree.nodes).toHaveLength(4);
+    expect(result.tree.stages?.map((stage) => stage.title)).toEqual(['起点', '能力发展', '目标完成']);
+    expect(result.tree.nodes[1]!.layout?.stage).toBe(1);
     expect(result.tree.edges.filter((edge) => edge.type === 'required')).toHaveLength(3);
     expect(validateTree(result.tree).filter((issue) => issue.severity === 'error')).toEqual([]);
   });

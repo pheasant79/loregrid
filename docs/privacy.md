@@ -1,6 +1,6 @@
 # Privacy
 
-Loregrid has no backend, account, telemetry, remote model request, or sync service. Tree definitions are loaded from the bundled demo or a file selected by the user. Progress and notes are stored locally by tree ID and exported only when the user chooses a backup action.
+Loregrid has no backend, account, telemetry, remote model request, or sync service. In the repository preview, the tree definition is a bundled fictional sample; in a customer build, the selected V1/V2 tree is embedded into the standalone HTML. The generated HTML contains that tree, so treat it as private if the tree is private. Progress and notes are stored locally by tree ID and exported only when the user chooses a backup action.
 
 Tree JSON and progress JSON are intentionally separate. A tree export contains public learning content. A progress export contains private self-assessment and notes and should not be committed or shared unintentionally.
 

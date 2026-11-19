@@ -1,8 +1,14 @@
-# Loregrid
+# Loregrid 2.0.0-rc.8
 
-Loregrid is a paged, offline learning technology tree. It keeps the useful static-web delivery of Learning Tech Tree while replacing the original single-canvas viewer with independent branch pages, an independently laid out **All** view, cross-page prerequisite proxies, global search, local progress, and a layered graph layout running in a Web Worker.
+Loregrid is a paged, offline learning technology tree. It keeps the useful static-web delivery of Learning Tech Tree while replacing the original single-canvas viewer with independent pages, an independently laid out **All** view, cross-page prerequisite proxies, global search, local progress, and a layered graph layout running in a Web Worker.
 
-> Alpha software. The data format is versioned, but UI and layout details may still change before the first stable release.
+This is a versioned application release candidate. The regular build bundles a fictional starter tree and can open the user's V1 or V2 files. The application is a general tool; customer-specific content is optional. To create a standalone file with an agreed tree already embedded:
+
+```powershell
+pnpm build:customer -- local-data\customer-tree.json
+```
+
+This validates and embeds that tree into `dist/index.html`, then assembles a handoff folder at `dist/customer-delivery/` containing the versioned HTML and license notices. The generated file contains the selected tree and must be treated as private; `dist/` and `local-data/` are ignored by Git. Progress and notes remain local to the browser and can be backed up separately.
 
 ## What is different
 
@@ -15,7 +21,11 @@ Loregrid is a paged, offline learning technology tree. It keeps the useful stati
 - Existing `learning-tech-tree/v1` JSON and legacy progress can be read and upgraded.
 - The production build is one self-contained HTML file, including the layout Worker.
 
-Loregrid is inspired by the clarity of YART's paged research-tree experience, but it does not include RimWorld code, integration, or art assets. See [third-party notices](THIRD_PARTY_NOTICES.md) and the [source mapping](docs/yart-source-map.md).
+Loregrid is inspired by the clarity of YART's paged research-tree experience. It does not include RimWorld code, integration, or game-owned art; YART-owned textures are retained under their MIT notice. See [third-party notices](THIRD_PARTY_NOTICES.md) and the [source mapping](docs/yart-source-map.md).
+
+The [YART behavior comparison](docs/yart-parity.md) tracks implemented interactions and remaining layout differences. Shift-click appends a prerequisite chain, Alt-click prioritizes it, and Ctrl-click replaces the queue with it. Right-click opens the same queue actions. Reordering preserves prerequisite order; removing a prerequisite also removes its queued dependents. Completed learning records are unaffected by queue removal.
+
+The layout uses dependency ranks, shared long-edge trunks, crossing optimization, spring/PAV placement and chain shaping. Stage labels color and group the existing dependency columns but do not create artificial ranks or spacing. This is a TypeScript adaptation informed by YART, not a line-by-line port; output positions are not guaranteed to match the mod. See the [local performance evidence](docs/performance.md), including dense and hub fixtures.
 
 ## Try it locally
 
@@ -26,7 +36,7 @@ pnpm install
 pnpm dev
 ```
 
-Open the printed local URL. The default fictional demo covers four pages and several cross-page dependencies.
+Open the printed local URL. The bundled fictional starter is sample content, separate from the application features. Use **Open tree** for your own data or the customer build command above to embed it.
 
 Build a double-clickable offline file:
 
@@ -34,7 +44,7 @@ Build a double-clickable offline file:
 pnpm build
 ```
 
-The result is `dist/index.html`. It has no runtime npm dependency, account, backend, API key, telemetry, or CDN requirement.
+The result is `dist/index.html`. Its footer shows the exact build version (`2.0.0-rc.8`). It has no runtime npm dependency, account, backend, API key, telemetry, or CDN requirement. `pnpm build` creates the general application with starter content; `pnpm build:customer -- <tree.json>` replaces `dist/index.html` with a build containing the selected tree and assembles the shareable files in `dist/customer-delivery/`. Distribute the general HTML with `LICENSE` and `THIRD_PARTY_NOTICES.md` too.
 
 ## Data and migration
 

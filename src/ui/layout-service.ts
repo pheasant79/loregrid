@@ -16,16 +16,19 @@ export class LayoutService {
 
   request(view: GraphView, treeVersion: string): Promise<LayoutResult> {
     const id = ++this.sequence;
-    const cacheKey = `layout-v1:${treeVersion}:${view.key}:${fingerprint(view)}`;
+    const cacheKey = `layout-v6:${treeVersion}:${view.key}:${fingerprint(view)}`;
     if (!this.worker) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         window.setTimeout(() => {
+          if (id !== this.sequence) { reject(new Error('Layout cancelled.')); return; }
           const cached = this.localCache.get(cacheKey);
           if (cached) resolve(cached);
           else {
-            const result = layoutGraph(view);
-            this.localCache.set(cacheKey, result);
-            resolve(result);
+            try {
+              const result = layoutGraph(view);
+              this.localCache.set(cacheKey, result);
+              resolve(result);
+            } catch (error) { reject(error); }
           }
         }, 0);
       });
@@ -37,6 +40,7 @@ export class LayoutService {
   }
 
   cancel(): void {
+    this.sequence++;
     this.worker?.terminate();
     this.pending.forEach(({ reject }) => reject(new Error('Layout cancelled.')));
     this.pending.clear();
@@ -66,7 +70,7 @@ export class LayoutService {
   }
 
   private canUseWorker(): boolean {
-    return typeof Worker !== 'undefined' && window.location.protocol !== 'file:';
+    return typeof Worker !== 'undefined';
   }
 }
 
@@ -78,7 +82,7 @@ function fingerprint(view: GraphView): string {
       hash = Math.imul(hash, 16777619);
     }
   };
-  view.nodes.forEach((node) => update(`${node.viewId}\u0000${node.title}\u0000${node.tabId}\u0000${node.layout?.groupId ?? ''}\u0000${node.layout?.stage ?? ''}\u0000${node.layout?.order ?? ''}`));
+  view.nodes.forEach((node) => update(`${node.viewId}\u0000${node.title}\u0000${node.tabId}\u0000${node.stageId ?? ''}\u0000${node.stageOrder ?? ''}\u0000${node.layout?.groupId ?? ''}\u0000${node.layout?.stageId ?? ''}\u0000${node.layout?.stage ?? ''}\u0000${node.layout?.order ?? ''}`));
   view.edges.forEach((edge) => update(`${edge.id}\u0000${edge.source}\u0000${edge.target}\u0000${edge.type}`));
   return (hash >>> 0).toString(36);
 }

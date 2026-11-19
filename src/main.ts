@@ -1,8 +1,7 @@
 import './styles.css';
-import demoTree from '../data/loregrid-demo.json';
 import { LoregridApp } from './ui/app';
 
 const root = document.querySelector<HTMLElement>('#app');
 if (!root) throw new Error('Missing application root.');
 
-new LoregridApp(root, demoTree);
+new LoregridApp(root, __LOREGRID_INITIAL_TREE__);

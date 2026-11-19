@@ -4,7 +4,13 @@ export const PROGRESS_FORMAT = 'loregrid/progress-v2' as const;
 export type TreeFormat = typeof TREE_FORMAT;
 export type EdgeType = 'required' | 'recommended' | 'related';
 export type NodeKind = 'topic' | 'optional' | 'milestone';
-export type GraphKey = 'all' | `tab:${string}`;
+export type GraphKey = 'all' | `tab:${string}` | `preset:${string}`;
+
+export interface PagePreset {
+  id: string;
+  name: string;
+  tabIds: string[];
+}
 
 export interface TreeTab {
   id: string;
@@ -13,6 +19,14 @@ export interface TreeTab {
   color?: string;
   order?: number;
   description?: string;
+}
+
+export interface TreeStage {
+  id: string;
+  title: string;
+  titleEn?: string;
+  color?: string;
+  order: number;
 }
 
 export interface TreeResource {
@@ -25,6 +39,9 @@ export interface TreeResource {
 export interface LayoutHint {
   groupId?: string;
   order?: number;
+  /** Stable stage ID in loregrid/tree-v2. */
+  stageId?: string;
+  /** Legacy numeric stage hint retained for V1/V2 compatibility. */
   stage?: number;
 }
 
@@ -59,6 +76,7 @@ export interface TreeDefinitionV2 {
   version?: string;
   language?: string;
   tabs: TreeTab[];
+  stages?: TreeStage[];
   resources: TreeResource[];
   nodes: TreeNode[];
   edges: TreeEdge[];
@@ -85,6 +103,10 @@ export interface GraphViewNode {
   kind: 'real' | 'proxy';
   nodeKind: NodeKind;
   targetTabId?: string;
+  stageId?: string;
+  stageOrder?: number;
+  effectiveStageId?: string;
+  effectiveStageOrder?: number;
   layout?: LayoutHint;
 }
 
@@ -115,6 +137,13 @@ export interface LayoutNode extends GraphViewNode {
   rank: number;
 }
 
+export interface LayoutStageBoundary {
+  stageId: string;
+  stageOrder: number;
+  left: number;
+  right: number;
+}
+
 export interface LayoutEdge extends GraphViewEdge {
   points: Point[];
 }
@@ -126,6 +155,7 @@ export interface LayoutResult {
   width: number;
   height: number;
   durationMs: number;
+  stageBoundaries: LayoutStageBoundary[];
 }
 
 export interface ProgressV2 {
@@ -133,9 +163,12 @@ export interface ProgressV2 {
   treeId: string;
   completed: Record<string, true>;
   notes: Record<string, string>;
+  queue: string[];
   exportedAt?: string;
   ui?: {
     language?: 'zh-CN' | 'en';
     lastGraphKey?: GraphKey;
+    presets?: PagePreset[];
+    favorites?: GraphKey[];
   };
 }

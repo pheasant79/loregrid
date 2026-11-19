@@ -4,7 +4,7 @@ import { normalizeTree } from '../src/core/normalize';
 import { validateTree } from '../src/core/validate';
 
 async function main(): Promise<void> {
-  const requested = process.argv.slice(2);
+  const requested = process.argv.slice(2).filter((argument) => argument !== '--');
   const files = requested.length > 0
     ? requested
     : (await readdir(resolve('data'))).filter((name) => name.endsWith('.json')).map((name) => resolve('data', name));
