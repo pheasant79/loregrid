@@ -1,37 +1,47 @@
-# Architecture
+# Architecture at a glance
 
-Loregrid is a static TypeScript application built by Vite into one offline HTML file.
+Loregrid is a TypeScript application with no UI framework. Vite builds it into a
+standalone offline HTML file.
 
-## Data flow
+## How a tree reaches the screen
 
-1. `normalizeTree` accepts `loregrid/tree-v2` or migrates `learning-tech-tree/v1` in memory.
-2. `validateTree` checks IDs, references, safe URLs, and required-edge cycles.
-3. `buildGraphView` creates either one tab graph with prerequisite proxies or the canonical All graph.
-4. `layout.worker.ts` caches and computes a layered layout outside the UI thread.
-5. `GraphRenderer` draws grid/edges/minimap on Canvas and visible nodes in a virtualized DOM layer backed by a spatial index.
-6. `LoregridApp` coordinates tabs, search, details, import/export, language, and local progress.
+1. `normalizeTree` reads V2 data or migrates V1 data in memory.
+2. `validateTree` checks identifiers, references, safe URLs, and dependency cycles.
+3. `buildGraphView` creates a page graph or the canonical All graph.
+4. `layout.worker.ts` computes layout outside the main UI thread.
+5. `GraphRenderer` draws edges on Canvas and visible node controls in the DOM.
+6. `LoregridApp` connects navigation, search, details, import/export, and progress.
 
-## Local tree library
+## Local tree library and progress
 
-`TreeLibrary` stores normalized, validated imported trees in IndexedDB. Its `catalog` store holds lightweight metadata separately from the `trees` store; startup lists metadata and reads only the selected tree. Original disk files remain unchanged. The built-in tree has a stable local key; each new imported file receives its own entry key. Identical reimports with the same filename and tree content reuse the existing entry.
+`TreeLibrary` stores imported trees in IndexedDB. Small catalog records let startup list
+trees without loading every graph. The app loads the selected tree; original files stay
+unchanged.
 
-The lower-right picker is collapsible, searchable and internally scrollable. It switches the active tree; it does not introduce collections or merge different trees. All and combined pages remain scoped to the active tree. localStorage progress keys include the library entry key as well as the data's tree ID, preventing files with duplicate IDs from sharing progress accidentally. Queues, notes, favorites, page presets and the last selected page restore independently. Existing pre-library progress is copied only to the first matching entry; legacy storage is retained.
+Each imported file has its own library entry. Progress keys include the entry key and tree
+ID so separate files with the same ID do not share state. Queues, notes, favorites,
+presets, and page selection restore independently.
 
-Storage failure leaves session-only imports usable with a warning. This is browser-local persistence, not filesystem discovery or synchronization. Browser storage policies also apply to the standalone `file:` build.
+This is browser storage, not folder scanning or synchronization. If persistent storage is
+unavailable, the app warns that imported trees last only for the current session.
 
-## Identity
+## Graph identity
 
-- `node.id` is the stable business identity.
-- `GraphViewNode.viewId` identifies a concrete rendering instance.
-- In All and the node's own tab, real nodes use the canonical ID.
-- A cross-tab prerequisite proxy uses `proxy:<tabId>:<nodeId>` and retains the canonical `nodeId` plus `targetTabId`.
+- `node.id` is the stable identity in the tree file.
+- `GraphViewNode.viewId` identifies one visible graph instance.
+- Real nodes keep their canonical ID in All and on their own page.
+- A cross-page prerequisite proxy uses `proxy:<tabId>:<nodeId>` and points to the
+  canonical node.
 
-## Layout
+## Layout and rendering
 
-Required edges determine rank. Long edges are split through temporary dummy nodes, layers are reordered with repeated barycentric sweeps, and nodes are compactly placed. Recommended and related edges are routed after primary placement and do not affect rank. Coordinates are output only; they are not stored in tree data.
+Required relationships determine rank. Long edges use temporary layout nodes; crossing
+reduction and compaction place the graph. Recommended and related links are routed after
+primary placement.
 
-## Rendering and scale
+Canvas handles the background, links, and minimap. DOM buttons provide readable labels,
+keyboard focus, and node interactions. A spatial index limits work to the visible area.
+Zoom changes the amount of node detail.
 
-Canvas draws the background, edges, and minimap. DOM buttons provide readable text, keyboard focus, and node interactions. A spatial grid returns only nodes near the viewport. Zoom level controls label detail. Layout is cancellable by terminating and recreating the Worker.
-
-The 10,000-node target is a pressure test, not a hard limit or a promise that All remains at 60 FPS. Page interaction is the primary performance budget.
+The 10,000-node fixture is a performance target, not a node limit or a promise that an
+All view stays at 60 FPS. See [performance notes](performance.md).

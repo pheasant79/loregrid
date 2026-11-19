@@ -482,7 +482,7 @@ button:disabled { opacity: .45; cursor: default; }
   .queue-card { flex-basis: 175px; height: 100%; }
 }
 
-/* Final customer polish: one page selector, one queue lane, shared node skin. */
+/* Compact workbench layout: one page selector, one queue lane, shared node skin. */
 .app-shell { grid-template-rows: 108px minmax(0, 1fr) 25px; }
 .queuebar { align-items: stretch; }
 .page-controls { flex: 0 0 clamp(270px, 22vw, 420px); }

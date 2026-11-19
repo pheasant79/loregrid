@@ -1,11 +1,34 @@
-# Customization
+# Organize a tree
 
-Copy `data/templates/minimal-template-v2.json`, choose a stable tree ID, and replace the fictional content. A tree is defined by tabs, nodes, resources, and relations; the application has no subject-specific constants.
+Start from `data/templates/minimal-template-v2.json`. A tree is made of pages, nodes,
+resources, optional stages, and relationships.
 
-Use tabs for durable areas that deserve independent reading and layout, such as foundations, fieldwork, analysis, language, design, or professional practice. Every node has one primary tab. Cross-tab required dependencies automatically become proxies.
+## Choose pages
 
-Use hard prerequisites sparingly. A topic merely being useful, common in a course, or historically earlier does not make it required. Prefer `recommended` for directed non-gating development and `related` for contextual association.
+Use a page for a durable area that benefits from its own view. Each node belongs to one
+page. Required prerequisites can connect nodes across pages; Loregrid shows a proxy
+where needed.
 
-Optional `layout.groupId`, `layout.order`, and `layout.stage` values may stabilize presentation, but never assign x/y coordinates. Loregrid computes node positions from dependencies.
+## Choose relationships
 
-Tab colors accept six-digit hex values. The UI itself is bilingual Chinese/English; tree titles and content are authored in the tree's chosen language.
+Use `required` only when a learner must complete a topic first. Multiple required
+prerequisites mean all of them are needed.
+
+Use `recommended` for useful next steps that should not block progress. Use `related`
+for non-directional context.
+
+## Add layout hints
+
+Optional group, order, and stage values can guide organization. They do not assign
+coordinates; Loregrid calculates node positions from the dependency graph.
+
+Stages are defined once for the whole tree, so pages and All share the same labels.
+See the [data format](data-format.md) for the stage structure.
+
+## Validate
+
+```powershell
+pnpm validate -- path/to/tree.json
+```
+
+Validation checks structure and references. Review the rendered tree as well.

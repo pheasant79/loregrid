@@ -1,35 +1,32 @@
 # Documentation
 
-Start with the guide for what you want to do:
+Choose a guide by task:
 
-## Use Loregrid
+## Use the app
 
-- [简体中文使用说明](README.zh-CN.md): run the app, add trees, switch between trees, and protect local progress.
-- [Customer delivery](customer-delivery.md): create and use a self-contained folder for a specific tree.
-- [Customer quick-start text](customer-quickstart.zh-CN.txt): plain-text instructions included in the generated handoff folder.
-- [Privacy and storage](privacy.md): understand browser storage, backups, offline use, and the no-sync boundary.
+- [简体中文使用指南](README.zh-CN.md): start Loregrid, import trees, browse pages, and back up progress.
+- [Privacy and storage](privacy.md): learn what stays in the browser and how to protect it.
 
 ## Create tree data
 
-- [Tree data format](data-format.md): `loregrid/tree-v2`, relationships, stages, and validation rules.
-- [Create a tree with Codex](create-with-codex.md): authoring workflow and content safeguards.
-- [Customization](customization.md): configure tree content and presentation.
-- [Public tree library](public-tree-library.md): catalog structure and how public JSON trees are discovered.
+- [Tree data format](data-format.md): V2 structure, relationships, stages, and validation.
+- [Create a tree with Codex](create-with-codex.md): a careful workflow for drafting and checking content.
+- [Customization](customization.md): organize pages, prerequisites, and layout hints.
+- [Public tree library](public-tree-library.md): publish JSON trees through the optional catalog.
 
-## Develop and maintain the app
+## Develop Loregrid
 
-- [Repository layout](repository-layout.md): source, data, build output, and customer package.
-- [Architecture](architecture.md): data flow, graph views, layout, rendering, and storage modules.
-- [Performance notes](performance.md): benchmark scope and measured behavior.
-- [YART behavior comparison](yart-parity.md): implemented similarities and known differences.
-- [YART source map](yart-source-map.md): source attribution and adaptation notes.
-- [Contributing](../CONTRIBUTING.md): change scope and verification commands.
-- [Publishing checklist](publish.md): checks and privacy review before an explicitly authorized publication.
+- [Repository layout](repository-layout.md): what each top-level folder contains.
+- [Architecture](architecture.md): data flow, layout, rendering, and storage.
+- [Performance notes](performance.md): how to reproduce benchmarks and interpret results.
+- [YART comparison](yart-parity.md): adapted behavior and intentional differences.
+- [YART source map](yart-source-map.md): attribution and source references.
+- [Contributing](../CONTRIBUTING.md): code and data contribution checks.
+- [Publishing checklist](publish.md): privacy and release-readiness review.
 
-## Historical notes
+## Project records
 
-- [Release notes](release-notes.md)
-- [Release records](releases/)
-- [Evidence and verification policy](evidence.md)
+- [Release notes](release-notes.md): current project-level change summary.
+- [Evidence and verification](evidence.md): how to report test and benchmark results.
 
-There is currently no hosted Loregrid demo or downloadable GitHub Release. The repository README describes the local run and offline build paths.
+There is no hosted demo or downloadable GitHub release yet. The repository [README](../README.md) has the local start instructions.

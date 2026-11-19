@@ -1,24 +1,22 @@
 # Loregrid
 
-**Paged, visual learning maps for exploring what to learn and how ideas connect.**
+**Explore a subject as a visual map of learning goals and prerequisites.**
 
 [简体中文](docs/README.zh-CN.md) · [Documentation index](docs/README.md) · [Data format](docs/data-format.md) · [Privacy](docs/privacy.md)
 
-**Current source version:** `2.0.0-rc.9` (release candidate; no downloadable release yet).
-
 ![The 155-node All overview of Loregrid's computer science sample tree](docs/assets/loregrid-preview-en.jpg)
 
-*The full All view of the repository's 155-node computer science example. Fit-to-view shows the graph's scale and structure; zoom in to read individual nodes.*
+*A full-tree view of the 155-node example. Fit the map to see its shape, then zoom in to read individual topics.*
 
-Loregrid turns a subject into a navigable map instead of a long checklist. One tree contains focused pages and an **All** overview. Pages keep large subjects readable, while prerequisites can still connect ideas across pages. A tree may have several starting points and goals; it does not force one subject into a single linear course.
+Loregrid is an offline-first, open-source viewer for paged learning trees. Each tree has focused pages and one **All** view. Required prerequisites connect topics, including across pages, without forcing a subject into one linear course.
 
-Use it to explore a learning map, search across its pages, inspect prerequisites and unlocks, plan a personal queue, and record progress. Loregrid is a general-purpose tool: it does not prescribe a subject, school, curriculum, research method, or study duration.
+Search a tree, inspect relationships, build a learning queue, and keep personal progress. Loregrid is general-purpose: it does not prescribe a discipline, curriculum, institution, or study schedule.
 
-## Try Loregrid
+## Run locally
 
-There is currently **no hosted web demo or downloadable GitHub Release**. To try the application now, run it locally:
+There is no hosted demo or downloadable release yet. Run the app on your computer:
 
-**Requirements:** Node.js 20 or newer and pnpm.
+**Requirements:** Node.js 20+ and pnpm.
 
 ```powershell
 git clone https://github.com/pheasant79/loregrid.git
@@ -27,62 +25,63 @@ pnpm install
 pnpm dev
 ```
 
-Open the local URL printed by Vite. The app starts with a fictional sample tree; no account or network connection is needed for its core features.
+Open the local address printed in the terminal. Loregrid starts with a fictional example. Core features work without an account or network access.
 
-To build a standalone HTML file that can be opened offline:
+To create a standalone offline HTML file:
 
 ```powershell
 pnpm build
 ```
 
-Open `dist/index.html`. This file is generated locally and is intentionally not committed to the repository. To make a customer folder with a specific tree embedded, use `pnpm build:customer -- path/to/tree.json`; see the [customer delivery guide](docs/customer-delivery.md).
+Open `dist/index.html`. Build output is generated locally and is not committed.
 
-## What you can do
+## Explore a tree
 
-- **Organize a subject into pages.** Browse each page independently or open **All** to see the active tree as one overview.
-- **Follow dependencies across pages.** Required prerequisites affect availability; recommended and related links provide context without blocking progress.
-- **Explore and plan.** Search the whole tree, inspect node details, add learning goals to a queue, and mark or undo completion.
-- **Keep trees separate.** Import multiple JSON trees into the in-app library. Each imported tree keeps its own queue, completion state, notes, and page selection.
-- **Use existing data.** Open `learning-tech-tree/v1` files directly or create a `loregrid/tree-v2` tree from the starter template.
+1. Open the tree library in the lower-right corner.
+2. Add one or more V1 or V2 JSON files.
+3. Choose a page, or select **All** to see the whole active tree.
+4. Select topics to inspect prerequisites, add learning goals to the queue, and record progress.
 
-## Trees and saved data
+Each imported tree keeps its own page, queue, completion state, and notes.
 
-Tree definitions are JSON files. Importing a file copies its contents into the current browser's local library; it does not watch or edit the original disk file. Queue, completion state, notes, and other personal progress are stored separately in that browser profile.
+## Your files and progress
 
-Loregrid has no account, backend, cloud sync, or telemetry. Browser-local data is not automatically shared between devices or browser profiles, and clearing browser data can remove it. Keep the original tree JSON and export a progress backup for each tree you want to preserve. Read [privacy and storage details](docs/privacy.md) before using private material.
+Tree definitions are JSON files. Importing a tree copies it into this browser; it does not edit or monitor the original file. Progress and private notes are stored separately in the browser.
 
-For a new tree, start with [`data/templates/minimal-template-v2.json`](data/templates/minimal-template-v2.json) and the [tree format guide](docs/data-format.md). Validate a file with:
+Loregrid has no account, backend, cloud sync, or telemetry. Browser data is not shared across devices or browser profiles, and clearing browser data may remove it. Keep your source JSON and export progress backups for anything important. See [privacy and storage](docs/privacy.md).
+
+To create a tree, copy [`data/templates/minimal-template-v2.json`](data/templates/minimal-template-v2.json), read the [tree format guide](docs/data-format.md), then validate the file:
 
 ```powershell
 pnpm validate -- path/to/tree.json
 ```
 
-## Repository map
+## Project map
 
 | Location | Purpose |
 | --- | --- |
-| `src/` | TypeScript application, graph model, layout, renderer, and Web Worker |
-| `data/examples/` | Fictional example trees |
-| `data/templates/` | Starter JSON for new trees |
-| `data/compatibility/` | V1 data used to check migration support |
-| `public/` and `schema/` | Public tree catalog, schemas, and web assets |
-| `scripts/` | Validation, migration, benchmarking, and customer-package build |
-| `tests/` | Unit tests, browser workflows, and screenshot baselines |
-| `docs/` | User guides, data format, privacy, architecture, and project references |
-| `dist/` | Generated output; ignored by Git and recreated by build commands |
+| `src/` | Application, graph model, layout, renderer, and Worker |
+| `data/examples/` | Fictional learning trees |
+| `data/templates/` | Starter JSON files |
+| `data/compatibility/` | Legacy-format test data |
+| `public/`, `schema/` | Optional public catalog, schemas, and web assets |
+| `scripts/`, `tests/` | Validation tools and automated tests |
+| `docs/` | Guides and technical references |
+| `dist/` | Generated build output; recreated by `pnpm build` |
 
-For the full explanation, see [repository and delivery layout](docs/repository-layout.md).
+See the [repository layout](docs/repository-layout.md) for details.
 
 ## Development
 
 ```powershell
 pnpm check
 pnpm test
+pnpm validate -- data/examples/loregrid-demo.json
 pnpm build
 ```
 
-After the [local setup](#try-loregrid), run `pnpm test:e2e` for browser tests or `pnpm benchmark` for synthetic graph benchmarks. See [architecture](docs/architecture.md), [performance notes](docs/performance.md), and [contributing](CONTRIBUTING.md) for implementation details.
+For browser tests, run `pnpm test:e2e`. For synthetic graph measurements, run `pnpm benchmark`. Read [architecture](docs/architecture.md), [performance notes](docs/performance.md), and [contributing](CONTRIBUTING.md).
 
 ## License and attribution
 
-Loregrid is distributed under the MIT License. The repository retains the original Learning Tech Tree license and separate YART attribution for reused material. See [`LICENSE`](LICENSE), [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the [YART source map](docs/yart-source-map.md).
+Loregrid is distributed under the MIT License and retains required upstream and third-party notices. See [`LICENSE`](LICENSE), [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the [YART source map](docs/yart-source-map.md).

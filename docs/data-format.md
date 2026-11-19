@@ -1,8 +1,12 @@
-# Loregrid tree format v2
+# Tree data format
 
-The public format identifier is `loregrid/tree-v2`. See `schema/loregrid-tree-v2.schema.json` and `data/examples/loregrid-demo.json` for the complete machine-readable contract. A clean starter template is in `data/templates/minimal-template-v2.json`.
+The current format is `loregrid/tree-v2`.
 
-## Minimal tree
+- Schema: `schema/loregrid-tree-v2.schema.json`
+- Complete example: `data/examples/loregrid-demo.json`
+- Starter template: `data/templates/minimal-template-v2.json`
+
+## Smallest valid tree
 
 ```json
 {
@@ -16,17 +20,21 @@ The public format identifier is `loregrid/tree-v2`. See `schema/loregrid-tree-v2
 }
 ```
 
-IDs must start with an ASCII letter and then contain only letters, digits, `_`, or `-`. Keep them stable so progress can follow revisions.
+IDs start with a letter and contain only letters, digits, `_`, or `-`. Keep IDs stable
+between revisions so saved progress can follow the tree.
 
 ## Nodes
 
-Only `id`, `title`, and `tabId` are required. Optional fields include `kind` (`topic`, `optional`, `milestone`), `summary`, `outcome`, `caution`, `tags`, `resourceIds`, and layout hints (`groupId`, `order`, `stageId`, legacy `stage`). Layout hints never fix x/y coordinates.
+Required fields are `id`, `title`, and `tabId`. Optional fields add type, description,
+outcomes, cautions, tags, resources, and layout hints.
 
-Each node belongs to exactly one primary tab. Trees may have multiple roots, leaves, and milestones.
+Each node belongs to one primary tab. Trees may have multiple starting points and goals.
+Coordinates are always computed by Loregrid; they are not part of the data format.
 
-## Learning stages
+## Stages
 
-Stage names are optional tree-wide data, not inferred from the subject or node kind. Add one shared ordered list of `stages` entries with stable IDs. Every tab, combined page, and `All` view uses the same stage identity and names; a node opts into a stage with `layout.stageId` (or the legacy numeric `layout.stage`). Do not define different names for the same stage order on different pages. For example:
+Stages are optional and shared by every page and the All view. Define their names and
+order once at tree level, then assign nodes with `layout.stageId`.
 
 ```json
 {
@@ -40,27 +48,36 @@ Stage names are optional tree-wide data, not inferred from the subject or node k
 }
 ```
 
-The canvas groups nodes into shared stage regions in dependency order and shows the stage title and tree-wide required-node completion count at the top of each region. A partial page cannot mark a stage complete while canonical required nodes elsewhere in the tree remain incomplete. Optional nodes do not block stage completion. If required dependencies contradict an authored stage hint, the later prerequisite stage wins for completion accounting. Stages do not add graph ranks or artificial spacing; node columns come from required dependencies. Without stage data, existing trees retain the neutral numbered-stage fallback only when their nodes already have numeric stage hints. V1 `stages` labels are migrated and paired with their numeric stage order; conflicting legacy page-scoped names are consolidated to a neutral tree-wide label with a warning.
+Stages label and color regions; they do not force graph rank or spacing. Required
+dependencies determine the layout. Optional nodes do not block stage completion.
 
-## Relations
+Do not assign different meanings to the same stage order on different pages. The
+following small example defines two shared stages:
 
-- `required`: directed, solid, gating, contributes to rank. Multiple incoming required edges mean AND.
-- `recommended`: directed, dashed, non-gating, does not determine primary rank.
-- `related`: non-directional product relationship, non-gating, normally shown only in details or relationship mode.
+## Relationships
 
-Required edges must be acyclic.
+- `required`: directed prerequisite; affects availability and layout. Multiple incoming
+  required edges mean **all** prerequisites must be met.
+- `recommended`: directed suggestion; does not block a node or set its main rank.
+- `related`: non-directional association; does not affect availability or rank.
 
-## Resources and imported content
+Required relationships must not form a cycle.
 
-Resources may use an HTTP(S) URL. Other protocols are rejected. Imported strings are displayed as text, not HTML. Public tree data never contains progress or private notes.
+## Resources and safety
 
-## V1 mapping
+Resources may use HTTP(S) URLs only. Imported text is displayed as text, never executed as
+HTML. Tree definitions do not contain progress or private notes.
 
-- `branches` become tabs.
-- `prereqIds` become required edges.
-- `applicationEdges` become recommended edges.
-- `relatedIds` become de-duplicated related edges.
-- `stage` becomes an optional layout hint.
-- `startId` and `endId` may become ordinary milestones; they no longer impose a single global path.
+## V1 compatibility
 
-Older V2 files may include top-level `paths` and node-level `pathId` fields. They are accepted on import for compatibility and ignored. A tree has one flat set of pages (`tabs`); each node belongs to one page by `tabId`.
+Legacy `learning-tech-tree/v1` files are read and converted in memory:
+
+- `branches` become pages.
+- `prereqIds` become `required` relationships.
+- `applicationEdges` become `recommended` relationships.
+- `relatedIds` become de-duplicated `related` relationships.
+- `stage` is retained as an optional layout hint.
+- `startId` and `endId` are ordinary node information, not global constraints.
+
+Older V2 `paths` and `pathId` fields are accepted for compatibility and ignored. V2
+trees use one flat set of pages (`tabs`).

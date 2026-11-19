@@ -1,16 +1,15 @@
-# Loregrid 2.0.0-alpha.0
+# Loregrid change summary
 
-## Current release candidate
+Loregrid is an offline-first viewer for paged learning trees. The repository currently
+contains its TypeScript source, fictional examples, JSON schemas, tests, and documentation.
 
-- [2.0.0-rc.9](releases/2.0.0-rc.9.md): browser-local tree library with a bounded lower-right switcher and isolated progress per imported file.
+Current capabilities include:
 
-- Rebranded the fork as Loregrid.
-- Added independent branch pages and a separately built All view.
-- Added cross-page required-prerequisite proxies and navigation.
-- Added a Worker-based layered layout with long-edge dummy nodes and crossing reduction.
-- Added Canvas edges/minimap, virtualized DOM nodes, spatial culling, zoom/pan/fit, search, details, and bilingual UI.
-- Added V2 tree/progress formats, V1 migration, local notes, backup/restore, and prerequisite-chain completion.
-- Added a fictional multi-page demo, schema, CLI validation/migration, unit tests, browser tests, and 1k/5k/10k benchmarks.
-- Added YART MIT attribution and behavior source mapping without RimWorld/YART assets or game integration.
+- Page and whole-tree views, with cross-page prerequisite links.
+- Worker-based graph layout and Canvas rendering.
+- Search, node details, learning queues, and local progress.
+- Import of Loregrid V2 and legacy Learning Tech Tree V1 data.
+- A single-file offline build.
 
-This alpha has not been pushed, released, deployed to Pages, or submitted upstream by the implementation work itself.
+The repository does not currently provide a hosted demo or downloadable release.
+See the [README](../README.md) for setup and the [documentation index](README.md) for guides.

@@ -1,10 +1,33 @@
-# Create a Loregrid tree with Codex
+# Draft a tree with Codex
 
-1. Establish the subject, starting knowledge, desired outcome, meaningful tabs, language, and whether the result is public or private.
-2. Read `AGENTS.md`, `docs/data-format.md`, `docs/customization.md`, and `data/templates/minimal-template-v2.json`.
-3. Define capabilities with stable IDs, a clear scope, an observable outcome, and only genuine required prerequisites.
-4. Use public primary sources when specialized claims require verification. Separate sourced facts from authored curriculum design.
-5. Save fictional examples under `data/examples/`, templates under `data/templates/`, approved public tree submissions under `public/trees/` and private working files outside Git (or temporarily under ignored `local-data/`).
-6. Run `pnpm validate -- <file>` and inspect the tree in the browser. Validation proves structural consistency, not educational sufficiency.
+Use this workflow to create or revise a learning-tree JSON file.
 
-Do not assume a fixed degree sequence, duration, institution, publication quota, or programming-heavy curriculum. Multiple roots and goals are valid. Public examples must not contain real identities, advisors, student records, private notes, progress, credentials, or machine-specific paths.
+## Before drafting
+
+Decide:
+
+- The subject and intended learner.
+- What a learner should be able to do at the end.
+- The pages that make the subject easier to browse.
+- Which files are public and which are private.
+
+Read [`AGENTS.md`](../AGENTS.md), the [data format](data-format.md), the
+[customization guide](customization.md), and
+[`data/templates/minimal-template-v2.json`](../data/templates/minimal-template-v2.json).
+
+## Build and review
+
+Give each node a stable ID, clear scope, and useful outcome. Mark only genuine
+prerequisites as `required`; use `recommended` or `related` for other connections.
+
+Check specialized claims against appropriate sources. Keep fictional examples free of
+real personal information and private notes.
+
+Validate the file:
+
+```powershell
+pnpm validate -- path/to/tree.json
+```
+
+Then import it into Loregrid and review the layout and relationships. Passing validation
+checks the data structure, not the educational quality of the tree.

@@ -136,18 +136,18 @@ test('selects a page, supports favorite shortcuts and edits combined pages', asy
   await page.locator('#moreButton').click();
 
   await page.locator('#addPreset').click();
-  await page.locator('#presetName').fill('客户组合');
+  await page.locator('#presetName').fill('本地组合');
   await page.locator('#presetChoices input[value="fieldwork"]').check();
   await page.locator('#savePreset').click();
-  await expect(page.locator('#activePage')).toHaveText('客户组合');
+  await expect(page.locator('#activePage')).toHaveText('本地组合');
   await page.locator('#editPreset').click();
-  await page.locator('#presetName').fill('客户组合新版');
+  await page.locator('#presetName').fill('本地组合新版');
   await page.locator('#presetChoices input[value="analysis"]').check();
   await page.locator('#savePreset').click();
-  await expect(page.locator('#activePage')).toHaveText('客户组合新版');
+  await expect(page.locator('#activePage')).toHaveText('本地组合新版');
   await expect(page.locator('#graphStats')).toHaveText('13 节点');
   await page.reload();
-  await expect(page.locator('#activePage')).toHaveText('客户组合新版');
+  await expect(page.locator('#activePage')).toHaveText('本地组合新版');
   await page.locator('#moreButton').click();
   await expect(page.locator('#favoriteList button')).toContainText('数据分析');
 });
@@ -363,7 +363,7 @@ test('creates a private combined page, restores it after reload and deletes it',
 
 test('backs up and restores notes, completion, queue and private combined pages', async ({ page }) => {
   await page.locator('.graph-node[data-node-id="station-orientation"]').click();
-  await page.locator('#detailBody textarea').fill('客户的私人笔记 <script>不会执行</script>');
+  await page.locator('#detailBody textarea').fill('私人笔记 <script>不会执行</script>');
   await page.getByRole('button', { name: '标记完成', exact: true }).click();
   await page.locator('.graph-node[data-node-id="safe-operations"]').click();
   await page.getByRole('button', { name: '加入队列', exact: true }).click();
@@ -389,12 +389,12 @@ test('backs up and restores notes, completion, queue and private combined pages'
   await expect(page.locator('#activePage')).toHaveText('备份组合');
   await page.locator('#categorySelect').selectOption('foundations');
   await page.locator('.graph-node[data-node-id="station-orientation"]').click();
-  await expect(page.locator('#detailBody textarea')).toHaveValue('客户的私人笔记 <script>不会执行</script>');
+  await expect(page.locator('#detailBody textarea')).toHaveValue('私人笔记 <script>不会执行</script>');
   const pendingExport = page.waitForEvent('download');
   await page.locator('#moreButton').click();
   await page.locator('#exportTree').click();
   const exported = await pendingExport;
-  expect(await readFile((await exported.path())!, 'utf8')).not.toContain('客户的私人笔记');
+  expect(await readFile((await exported.path())!, 'utf8')).not.toContain('私人笔记');
   expect(await readFile((await exported.path())!, 'utf8')).not.toContain('备份组合');
 });
 

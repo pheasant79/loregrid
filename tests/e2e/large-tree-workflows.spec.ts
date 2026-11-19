@@ -222,7 +222,7 @@ test('loads 10000 nodes, switches pages, searches globally and measures pan and 
   });
   await page.goto('/');
   await page.locator('#treeFile').setInputFiles({ name: 'stress.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({
-    format: 'loregrid/tree-v2', id: 'customer-stress', title: 'Stress', language: 'en', tabs, nodes, edges, resources: [],
+    format: 'loregrid/tree-v2', id: 'large-tree-stress', title: 'Stress', language: 'en', tabs, nodes, edges, resources: [],
   })) });
   await expect(page.locator('#graphStats')).toHaveText('1000 nodes');
   await page.locator('#categorySelect').selectOption({ label: 'Page 8' });

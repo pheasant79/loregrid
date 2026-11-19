@@ -1,23 +1,37 @@
-# YART source mapping
+# YART source map
 
-Loregrid is a browser learning-map application, not a RimWorld mod. This document records which general ideas were studied so future maintainers can distinguish adapted layout behavior from independently authored product code.
+This map records the YART source areas reviewed when implementing Loregrid. The project
+uses the YART-owned code and textures identified in `THIRD_PARTY_NOTICES.md` under their
+MIT terms. Loregrid's TypeScript implementation is an adaptation, not a line-for-line
+port.
 
-| Loregrid area | YART reference | Adapted idea | Explicitly excluded |
-| --- | --- | --- | --- |
-| `src/core/graph.ts` | `Source/YART/Data/GraphKey.cs`, `ResearchGraph.cs`, `GraphBuildPipeline.cs` | Independent graph keys, flat per-page views, unified view, canonical identity and cross-page prerequisite proxies | RimWorld `ResearchProjectDef`, research tabs, DLC and mod compatibility |
-| `src/core/layout.ts`, `layout-model.ts`, `rank-balancing.ts`, `stages.ts` | `Source/YART/SugiyamaLayout.cs`, `Data/Constraints.cs` | Topological dependency ranks, tightening/compaction, soft column budgets, shared-source long-edge trunks, tree-wide effective stage propagation and stage bands derived from placed nodes | C# implementation details, Unity types, game-specific `TechLevel` values and rules |
-| `src/core/crossing-layout.ts` | `SugiyamaLayout.cs`: `MinimizeCrossings`, `WMedian`, `Transpose`, `ExactSmallLayerSweep`, `SiftingPass`, `CountCrossings`, `EstimateMinHeight` | Fenwick crossing count; deterministic multi-seed median sweeps, transpose, exact small-layer DP and bounded on-demand sifting; chain-aware height score | YART ordering implementation details and output order are not copied byte-for-byte; weighted path scores approximate explicit descendant sets |
-| `src/core/chain-layout.ts` | `SugiyamaLayout.cs`: `CollectChains`, `ShapeChains`, `FitChain`, `UntangleChains`, `ResolveDummyRuns` | Fit long-edge dummy corridors around fixed nodes, try safe adjacent-strip swaps, enforce feasible separation and retain best state on cycles | YART grid snapping and game-specific node constraints; web uses continuous coordinates and deterministic work budgets |
-| `src/core/layout.ts`, `src/core/spring-layout.ts` | `SugiyamaLayout.cs`, `Data/Constraints.cs` | Spring relaxation, PAV separation projection, terminal-leaf alignment and continuous coordinate placement | Unity renderer and game-specific size rules |
-| `src/worker/layout.worker.ts` | YART's staged graph build behavior | Layout work isolated from interactive rendering and cached by graph identity | Game ticks, Harmony, threading implementation |
-| `src/ui/app.ts`, `src/core/progress.ts` | `MainTabWindow_YART.TopBar.cs`, `QueueBar.cs`, `Interaction.cs`, `SearchUI.cs`, `Data/ResearchQueueManager.cs` | Top horizontal queued research cards with individual remove X, prerequisite-chain insertion, stable dependency ordering after moves, cascading queue removal, Shift/Alt/Ctrl click queue actions, context menu; top-left All/page selector/search; private combined-page presets; left detail panel | RimWorld window classes, per-bench game channels, automatic game research, sounds and translated strings |
-| `src/ui/renderer.ts`, `src/ui/edge-routing.ts`, `src/styles.css` | `MainTabWindow_YART.Canvas.cs`, `Nodes.cs`, `Edges.cs`, `Rendering/EdgeRenderer.cs`, `ResearchNode.GetInputAnchor/GetOutputAnchor` | Shared stage bands, 200x50 rounded cards, zoom-expanded generic learning detail, progress-state glyphs, smooth cubic Bezier dependencies, localized stage-color transitions along curves, distributed deterministic node ports, shared initial trunks for common long-edge branches, and YART's `EdgeLine.png` alpha profile | Unity GL drawing, game state and RimWorld-owned visual assets |
-| `src/assets/yart/` | `Textures/YART/NodePanel*.png`, `EdgeLine.png`, `GlowRadial.png`, `NoiseTile.png`, `Vignette.png`, and status icons | Original YART-owned panel, border, background and status textures bundled by Vite into the offline HTML | All RimWorld base-game textures and other game-owned assets |
+## Graph and layout
 
-The Loregrid data model, progress semantics, bilingual web UI, Canvas/DOM renderer, import/export flow, privacy separation, accessibility behavior, and offline single-file build are independently authored for this project. Dependency focus remains visible without dimming unrelated nodes by default, consistent with YART's default focus setting.
+| Loregrid source | YART reference | Adapted behavior |
+| --- | --- | --- |
+| `src/core/graph.ts` | `Source/YART/Data/GraphKey.cs`, `ResearchGraph.cs`, `GraphBuildPipeline.cs` | Stable graph identity, per-page views, All view, and cross-page prerequisite proxies. |
+| `src/core/layout.ts`, `layout-model.ts`, `rank-balancing.ts`, `stages.ts` | `Source/YART/SugiyamaLayout.cs`, `Data/Constraints.cs` | Dependency ranks, tightening, compaction, long-edge routing, and shared stage regions. |
+| `src/core/crossing-layout.ts` | `SugiyamaLayout.cs` crossing-reduction routines | Fenwick crossing counts, median sweeps, transpose, small-layer optimization, and bounded sifting. |
+| `src/core/chain-layout.ts` | `SugiyamaLayout.cs` chain-shaping routines | Long-edge shaping, safe untangling, and feasible dummy-node separation. |
+| `src/core/spring-layout.ts` | `SugiyamaLayout.cs`, `Data/Constraints.cs` | Spring relaxation, non-overlap projection, and terminal alignment. |
+| `src/worker/layout.worker.ts` | YART staged graph build | Background layout calculation and caching. |
 
-The page selector uses one All control plus one flat page selector; the page picker is hidden in All view, and the All control returns to the last page. Legacy path fields are ignored on import. Stage bands use one optional tree-wide ordered stage list and numeric/ID node hints; every page and the All view reuse the same stage identity so cross-page prerequisites cannot create competing era names. Stages color and annotate dependency-ranked columns but do not add ranks or artificial gaps. V1 stage names are preserved during migration, and conflicting legacy page-scoped names are consolidated with a warning. Loregrid does not fabricate discipline-specific eras. Completed cards use a translucent stage-color fill and a stronger stage-color frame; ready nodes keep a small amber glyph.
+Loregrid uses continuous coordinates and deterministic work budgets. It does not promise
+the same node ordering or coordinates as YART.
 
-The prominent top card X removes that research item from the queue. The separate preset delete X removes a custom page. These controls serve different purposes. Required edges remain neutral until a completed endpoint activates a learning path; active long paths use desaturated stage colors through the corresponding era bands. Selected paths brighten, while recommended edges remain separate and non-gating.
+## Interface and rendering
 
-Layout fidelity is a source-informed TypeScript adaptation, not a line-by-line port or pixel-identical renderer. Loregrid now covers rank budgeting, multi-stage crossing reduction, long-edge chain shaping, safe untangling, dummy-run feasibility, spring/PAV placement, terminal-leaf alignment and optional generic tree-wide learning stages. Stage transitions add a small visual column gutter only; they do not become mandatory graph ranks. It preserves named stage order as a generic learning-map concept but does not use game-specific `TechLevel` values or rules; it also uses continuous coordinates and bounded optional refinements, so YART-identical coordinates or ordering are not promised. Edge gradients use Canvas strokes rather than YART's Unity/GL ribbon mesh, and exact curve geometry/color interpolation is not claimed. See the [behavior comparison](yart-parity.md) for implementation boundaries and verified limitations.
+| Loregrid source | YART reference | Adapted behavior |
+| --- | --- | --- |
+| `src/ui/app.ts`, `src/core/progress.ts` | `MainTabWindow_YART.TopBar.cs`, `QueueBar.cs`, `Interaction.cs`, `Data/ResearchQueueManager.cs` | Page controls, queue operations, prerequisite-chain insertion, and progress. |
+| `src/ui/renderer.ts`, `src/ui/edge-routing.ts`, `src/styles.css` | `MainTabWindow_YART.Canvas.cs`, `Nodes.cs`, `Edges.cs`, `Rendering/EdgeRenderer.cs` | Node cards, curves, stage colors, stable edge ports, and shared long-edge trunks. |
+| `src/assets/yart/` | `Textures/YART/NodePanel*.png`, `EdgeLine.png`, `GlowRadial.png`, `NoiseTile.png`, `Vignette.png`, status icons | YART-owned UI textures and status glyphs. |
+
+Loregrid draws the graph with Canvas and HTML elements. Its gradients and curves are
+adapted to the browser renderer, not pixel-identical to YART's Unity rendering.
+
+## Excluded material
+
+Loregrid does not include RimWorld-owned textures, game definitions, DLC behavior,
+Harmony integration, game-save logic, or automatic in-game research. These exclusions
+are also described in the [behavior comparison](yart-parity.md).
