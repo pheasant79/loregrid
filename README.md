@@ -1,11 +1,12 @@
 # Loregrid 2.0.0-rc.9
 
-Loregrid is delivered as a normal open-source repository. The readable algorithms and
-application source are under `src/`; the runnable customer artifact is generated under
-`dist/`. Start with [`docs/repository-layout.md`](docs/repository-layout.md) if you are
-unsure which folder to use.
+Loregrid is an open-source workspace for exploring and building **paged learning trees**: visual maps that help people understand what they can learn, what depends on what, and how separate topics fit into a larger subject. It is intended for self-directed learning, study plans, and other knowledge maps where relationships matter more than a flat checklist. It is not tied to one discipline, school, course length, or research method.
 
-Loregrid is a paged, offline learning technology tree. It keeps the useful static-web delivery of Learning Tech Tree while replacing the original single-canvas viewer with independent pages, an independently laid out **All** view, cross-page prerequisite proxies, global search, local progress, and a layered graph layout running in a Web Worker.
+A Loregrid tree is one subject map made up of pages. Each page presents a focused part of that map; **All** brings its pages together into one overview. A prerequisite can point to a node on another page, so the map can stay organized without hiding cross-topic dependencies. A tree can have several starting points and several endpoints; it does not need one artificial root or a single linear route.
+
+When using a tree, you can browse its pages, inspect relationships, search across the whole tree, build a personal learning queue, and record completion and private notes. Those records are kept separately for each tree in the current browser profile, so using one tree does not overwrite another tree's progress. Loregrid runs as a static web application and can also be built as a self-contained HTML file for offline use; it has no account system, backend, or cloud synchronization.
+
+This repository contains both the application and the tools for working with tree data. The TypeScript source and readable algorithms live under `src/`; example, starter-template, and compatibility JSON files live under `data/`; a customer-ready package is generated under `dist/`. The built-in demo is fictional sample content, not a required curriculum. You can start with it, import your own V1/V2 JSON tree, or create one from the template. See [`docs/repository-layout.md`](docs/repository-layout.md) for what belongs in each folder.
 
 **Start here:** [Chinese guide](docs/README.zh-CN.md) · [Repository layout](docs/repository-layout.md) · [Customer delivery](docs/customer-delivery.md) · [Privacy and storage](docs/privacy.md)
 
