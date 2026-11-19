@@ -12,6 +12,7 @@ export default defineConfig({
   outputDir: './test-results/playwright',
   snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{arg}{ext}',
   fullyParallel: true,
+  workers: 1,
   retries: 0,
   reporter: [['list'], ['html', { outputFolder: 'test-results/playwright-report', open: 'never' }]],
   use: {

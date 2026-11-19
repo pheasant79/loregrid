@@ -168,6 +168,7 @@ export interface ProgressV2 {
   ui?: {
     language?: 'zh-CN' | 'en';
     lastGraphKey?: GraphKey;
+    lastPageKey?: GraphKey;
     presets?: PagePreset[];
     favorites?: GraphKey[];
   };

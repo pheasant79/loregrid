@@ -434,7 +434,7 @@ test('opens the production build directly from the filesystem', async ({ page })
   if (process.env.LOREGRID_EXPECT_TREE_TITLE) {
     await expect(page.locator('#treeTitle')).toHaveText(process.env.LOREGRID_EXPECT_TREE_TITLE);
   }
-  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.8');
+  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.9');
   await expect(page.locator('.graph-node').first()).toBeVisible();
   const currentPageCount = Number(((await page.locator('#graphStats').textContent()) ?? '').match(/\d+/)?.[0]);
   await page.locator('#tabs button').first().click();

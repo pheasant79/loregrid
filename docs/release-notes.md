@@ -1,5 +1,9 @@
 # Loregrid 2.0.0-alpha.0
 
+## Current release candidate
+
+- [2.0.0-rc.9](releases/2.0.0-rc.9.md): browser-local tree library with a bounded lower-right switcher and isolated progress per imported file.
+
 - Rebranded the fork as Loregrid.
 - Added independent branch pages and a separately built All view.
 - Added cross-page required-prerequisite proxies and navigation.

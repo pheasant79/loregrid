@@ -2,7 +2,9 @@ export type Language = 'zh-CN' | 'en';
 
 const messages = {
   'zh-CN': {
-    all: '总览', search: '搜索节点、标签或 ID', openTree: '打开树', exportTree: '导出树',
+    all: '总览', search: '搜索节点、标签或 ID', openTree: '添加树', exportTree: '导出树',
+    treeLibrary: '树库', addTree: '添加 JSON 树', searchTrees: '搜索树名或文件名', noTrees: '暂无已添加的树', importingTrees: '正在导入树…',
+    treeStatus: '{queue} 项排队 · {count} 棵树',
     queue: '学习队列', addQueue: '加入队列', removeQueue: '移出队列',
     clearQueue: '清空', confirmClearQueue: '清空学习队列（{count} 项）？不会修改完成记录或笔记。',
     removeQueueChain: '移出此项及依赖它的排队项', priorityQueue: '优先学习此前置链', replaceQueue: '只保留此前置链',
@@ -19,7 +21,9 @@ const messages = {
     storageRecovery: '已保护原有存储：当前无法读取进度，自动保存已暂停。请恢复有效备份；本次修改可导出备份。',
   },
   en: {
-    all: 'All', search: 'Search nodes, tags, or IDs', openTree: 'Open tree', exportTree: 'Export tree',
+    all: 'All', search: 'Search nodes, tags, or IDs', openTree: 'Add tree', exportTree: 'Export tree',
+    treeLibrary: 'Tree library', addTree: 'Add JSON trees', searchTrees: 'Search tree or file name', noTrees: 'No trees added', importingTrees: 'Adding trees…',
+    treeStatus: '{queue} queued · {count} trees',
     queue: 'Learning queue', addQueue: 'Add to queue', removeQueue: 'Remove from queue',
     clearQueue: 'Clear', confirmClearQueue: 'Clear the learning queue ({count} items)? Completion records and notes will be kept.',
     removeQueueChain: 'Remove item and its queued dependents', priorityQueue: 'Prioritize prerequisite chain', replaceQueue: 'Keep only this prerequisite chain',

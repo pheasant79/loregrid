@@ -3,6 +3,8 @@ import { requiredAncestors, tabKey } from './graph';
 
 const noteLimit = 12_000;
 const keyFor = (treeId: string): string => `loregrid:progress:${treeId}`;
+const entryKeyFor = (treeId: string, entryKey: string): string =>
+  `loregrid:progress-entry:${encodeURIComponent(entryKey)}:${treeId}`;
 const legacyKeyFor = (treeId: string): string => `learning-tech-tree:progress:${treeId}`;
 
 export function emptyProgress(treeId: string): ProgressV2 {
@@ -67,19 +69,37 @@ export function parseProgress(value: unknown, tree: TreeDefinitionV2): ProgressV
     return undefined;
   };
   const lastGraphKey = normalizeGraphKey(rawUi.lastGraphKey);
+  const lastPageKey = normalizeGraphKey(rawUi.lastPageKey);
   const favorites = Array.isArray(rawUi.favorites)
     ? [...new Set(rawUi.favorites.map(normalizeGraphKey).filter((key): key is GraphKey => Boolean(key && key !== 'all')))]
     : [];
-  return { format: PROGRESS_FORMAT, treeId: tree.id, completed, notes, queue: orderQueue(queue, tree), ui: { language, lastGraphKey, presets, favorites } };
+  return { format: PROGRESS_FORMAT, treeId: tree.id, completed, notes, queue: orderQueue(queue, tree), ui: { language, lastGraphKey, lastPageKey, presets, favorites } };
 }
 
-export function loadProgress(tree: TreeDefinitionV2, storage?: Storage): { progress: ProgressV2; migrated: boolean; saveBlocked?: boolean } {
+export function loadProgress(
+  tree: TreeDefinitionV2,
+  storage?: Storage,
+  entryKey?: string,
+  allowLegacyFallback = true,
+): { progress: ProgressV2; migrated: boolean; saveBlocked?: boolean } {
   try {
     const target = storage ?? globalThis.localStorage;
+    const scopedKey = entryKey ? entryKeyFor(tree.id, entryKey) : keyFor(tree.id);
+    const scoped = target.getItem(scopedKey);
+    if (scoped) return { progress: parseProgress(scoped, tree), migrated: false };
+    if (entryKey && !allowLegacyFallback) return { progress: emptyProgress(tree.id), migrated: false };
     const current = target.getItem(keyFor(tree.id));
-    if (current) return { progress: parseProgress(current, tree), migrated: false };
+    if (current) {
+      const progress = parseProgress(current, tree);
+      if (entryKey) target.setItem(scopedKey, JSON.stringify(progress));
+      return { progress, migrated: Boolean(entryKey) };
+    }
     const legacy = target.getItem(legacyKeyFor(tree.id));
-    if (legacy) return { progress: parseProgress(legacy, tree), migrated: true };
+    if (legacy) {
+      const progress = parseProgress(legacy, tree);
+      if (entryKey) target.setItem(scopedKey, JSON.stringify(progress));
+      return { progress, migrated: true };
+    }
   } catch {
     // Preserve unreadable or inaccessible stored data until the user restores a valid backup.
     return { progress: emptyProgress(tree.id), migrated: false, saveBlocked: true };
@@ -87,14 +107,14 @@ export function loadProgress(tree: TreeDefinitionV2, storage?: Storage): { progr
   return { progress: emptyProgress(tree.id), migrated: false };
 }
 
-export function saveProgress(progress: ProgressV2, storage?: Storage): void {
+export function saveProgress(progress: ProgressV2, storage?: Storage, entryKey?: string): void {
   const target = storage ?? globalThis.localStorage;
-  target.setItem(keyFor(progress.treeId), JSON.stringify(progress));
+  target.setItem(entryKey ? entryKeyFor(progress.treeId, entryKey) : keyFor(progress.treeId), JSON.stringify(progress));
 }
 
-export function restoreStoredProgress(progress: ProgressV2, storage?: Storage): void {
+export function restoreStoredProgress(progress: ProgressV2, storage?: Storage, entryKey?: string): void {
   const target = storage ?? globalThis.localStorage;
-  const key = keyFor(progress.treeId);
+  const key = entryKey ? entryKeyFor(progress.treeId, entryKey) : keyFor(progress.treeId);
   const previous = target.getItem(key);
   // Write the recovery copy first. If storage is full, leave the existing record intact.
   if (previous !== null) target.setItem(`${key}:before-restore`, previous);

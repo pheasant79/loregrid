@@ -11,6 +11,14 @@ Loregrid is a static TypeScript application built by Vite into one offline HTML 
 5. `GraphRenderer` draws grid/edges/minimap on Canvas and visible nodes in a virtualized DOM layer backed by a spatial index.
 6. `LoregridApp` coordinates tabs, search, details, import/export, language, and local progress.
 
+## Local tree library
+
+`TreeLibrary` stores normalized, validated imported trees in IndexedDB. Its `catalog` store holds lightweight metadata separately from the `trees` store; startup lists metadata and reads only the selected tree. Original disk files remain unchanged. The built-in tree has a stable local key; each new imported file receives its own entry key. Identical reimports with the same filename and tree content reuse the existing entry.
+
+The lower-right picker is collapsible, searchable and internally scrollable. It switches the active tree; it does not introduce collections or merge different trees. All and combined pages remain scoped to the active tree. localStorage progress keys include the library entry key as well as the data's tree ID, preventing files with duplicate IDs from sharing progress accidentally. Queues, notes, favorites, page presets and the last selected page restore independently. Existing pre-library progress is copied only to the first matching entry; legacy storage is retained.
+
+Storage failure leaves session-only imports usable with a warning. This is browser-local persistence, not filesystem discovery or synchronization. Browser storage policies also apply to the standalone `file:` build.
+
 ## Identity
 
 - `node.id` is the stable business identity.

@@ -23,7 +23,9 @@ test('opens V1 content, migrates progress without modifying its original storage
   await expect(page.locator('#detailBody textarea')).toHaveValue('旧笔记');
   const saved = await page.evaluate((treeId) => ({
     legacy: localStorage.getItem(`learning-tech-tree:progress:${treeId}`),
-    current: localStorage.getItem(`loregrid:progress:${treeId}`),
+    current: Object.entries(localStorage).find(([key]) =>
+      key.startsWith('loregrid:progress-entry:') && key.endsWith(`:${treeId}`),
+    )?.[1] ?? null,
   }), input.id);
   expect(JSON.parse(saved.legacy!).format).toBe('learning-tech-progress/v1');
   expect(JSON.parse(saved.current!).format).toBe('loregrid/progress-v2');
@@ -53,11 +55,96 @@ test('opens the single file offline without external requests and renders import
   await expect(page.locator('#detailBody h1')).toHaveText(input.nodes[0].title);
   await expect(page.locator('#detailBody img, #detailBody script')).toHaveCount(0);
   expect(await page.evaluate(() => 'injected' in window)).toBe(false);
+  await page.reload();
+  await expect(page.locator('#treeTitle')).toHaveText(input.title);
+  await expect(page.locator('.graph-node').first()).toBeVisible();
   input.resources = [{ id: 'unsafe-link', title: 'Unsafe', url: 'javascript:alert(1)' }];
   await page.locator('#treeFile').setInputFiles({ name: 'unsafe.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(input)) });
   await expect(page.locator('#toast')).toContainText('HTTP(S)');
   expect(requests).toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test('switches local JSON trees and isolates queues, completion, and last page', async ({ page }) => {
+  const source = JSON.parse(await readFile('data/loregrid-demo.json', 'utf8'));
+  const alpha = { ...source, id: 'same-tree-id', title: 'Alpha history' };
+  const beta = { ...source, id: 'same-tree-id', title: 'Beta history' };
+  await page.goto('/');
+  await page.locator('#treeFile').setInputFiles([
+    { name: 'alpha.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(alpha)) },
+    { name: 'beta.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(beta)) },
+  ]);
+  await expect(page.locator('#treeTitle')).toHaveText(alpha.title);
+  await page.locator('#treeSwitcherToggle').click();
+  await expect(page.locator('#treeList .tree-choice')).toHaveCount(3);
+  await page.keyboard.press('Escape');
+  await page.locator('.graph-node[data-node-id="station-orientation"]').click();
+  await page.locator('#detailBody textarea').fill('Alpha private note');
+  await page.locator('#detailBody button').filter({ hasText: '加入队列' }).click();
+  await page.locator('#categorySelect').selectOption('fieldwork');
+  await page.locator('#treeSwitcherToggle').click();
+  await page.locator('.tree-choice').filter({ hasText: beta.title }).click();
+  await expect(page.locator('#treeTitle')).toHaveText(beta.title);
+  await expect(page.locator('.queue-card')).toHaveCount(0);
+  await expect(page.locator('#categorySelect')).toHaveValue('foundations');
+  await page.locator('.graph-node[data-node-id="station-orientation"]').click();
+  await expect(page.locator('#detailBody textarea')).toHaveValue('');
+  await page.locator('#detailBody textarea').fill('Beta private note');
+  await page.getByRole('button', { name: '标记完成', exact: true }).click();
+  await page.locator('#categorySelect').selectOption('analysis');
+  await page.locator('#treeSwitcherToggle').click();
+  await page.locator('.tree-choice').filter({ hasText: alpha.title }).click();
+  await expect(page.locator('#treeTitle')).toHaveText(alpha.title);
+  await expect(page.locator('.queue-card')).toHaveCount(1);
+  await expect(page.locator('#categorySelect')).toHaveValue('fieldwork');
+  await page.locator('#searchInput').fill('station-orientation');
+  await page.locator('#searchResults button').first().click();
+  await expect(page.locator('#detailBody textarea')).toHaveValue('Alpha private note');
+  await page.locator('#treeSwitcherToggle').click();
+  await page.locator('.tree-choice').filter({ hasText: beta.title }).click();
+  await expect(page.locator('#progressSummary')).toHaveText('1 / 20 完成');
+  await expect(page.locator('#categorySelect')).toHaveValue('analysis');
+  await page.locator('#treeFile').setInputFiles({
+    name: 'beta.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(beta)),
+  });
+  await page.locator('#treeSwitcherToggle').click();
+  await expect(page.locator('#treeList .tree-choice')).toHaveCount(3);
+  await page.keyboard.press('Escape');
+  await page.locator('#searchInput').fill('station-orientation');
+  await page.locator('#searchResults button').first().click();
+  await expect(page.locator('#detailBody textarea')).toHaveValue('Beta private note');
+  await page.locator('#categorySelect').selectOption('analysis');
+  await page.reload();
+  await expect(page.locator('#treeTitle')).toHaveText(beta.title);
+  await expect(page.locator('#progressSummary')).toHaveText('1 / 20 完成');
+  await expect(page.locator('#categorySelect')).toHaveValue('analysis');
+});
+
+test('bounds and searches a large tree list instead of growing over the board', async ({ page }) => {
+  const source = JSON.parse(await readFile('data/loregrid-demo.json', 'utf8'));
+  const files = Array.from({ length: 14 }, (_, index) => {
+    const tree = { ...source, id: `library-tree-${index}`, title: `Study tree ${index}` };
+    return { name: `study-${index}.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(tree)) };
+  });
+  await page.goto('/');
+  await page.locator('#treeFile').setInputFiles(files);
+  await page.locator('#treeSwitcherToggle').click();
+  await expect(page.locator('#treeList .tree-choice')).toHaveCount(15);
+  await expect(page.locator('#treePicker')).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#treeList .tree-choice').first()).toBeFocused();
+  const dimensions = await page.locator('#treeList').evaluate((element) => ({
+    height: element.clientHeight,
+    content: element.scrollHeight,
+  }));
+  expect(dimensions.content).toBeGreaterThan(dimensions.height);
+  await expect(page).toHaveScreenshot('tree-library.png', { animations: 'disabled' });
+  await page.locator('#treeSearch').fill('study-13');
+  await expect(page.locator('#treeList .tree-choice')).toHaveCount(1);
+  await expect(page.locator('#treeList .tree-choice')).toContainText('Study tree 13');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#treePicker')).toBeHidden();
+  await expect(page.locator('#treeSwitcherToggle')).toBeFocused();
 });
 
 test('loads 10000 nodes, switches pages, searches globally and measures pan and zoom frames', async ({ page }, testInfo) => {
@@ -139,5 +226,5 @@ test('loads 10000 nodes, switches pages, searches globally and measures pan and 
 
 test('shows the concrete build version in the app footer', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.8');
+  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.9');
 });

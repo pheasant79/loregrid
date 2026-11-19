@@ -159,4 +159,20 @@ describe('progress v2', () => {
     expect(localStorage.getItem(`${key}:before-restore`)).toBe('unreadable original');
     expect(loadProgress(tree, localStorage).progress.completed.a).toBe(true);
   });
+
+  it('isolates progress for separate library entries even when tree IDs match', () => {
+    const tree = makeTree();
+    const alpha = { ...completeNode(emptyProgress(tree.id), 'a', true), queue: ['b'] };
+    const beta = { ...emptyProgress(tree.id), queue: ['c'] };
+    localStorage.clear();
+    restoreStoredProgress(alpha, localStorage, 'alpha-entry');
+    restoreStoredProgress(beta, localStorage, 'beta-entry');
+    const loadedAlpha = loadProgress(tree, localStorage, 'alpha-entry', false).progress;
+    const loadedBeta = loadProgress(tree, localStorage, 'beta-entry', false).progress;
+    expect(loadedAlpha.completed.a).toBe(true);
+    expect(loadedAlpha.queue).toEqual(['b']);
+    expect(loadedBeta.completed).toEqual({});
+    expect(loadedBeta.queue).toEqual(['c']);
+    expect(localStorage.getItem(`loregrid:progress:${tree.id}`)).toBeNull();
+  });
 });
