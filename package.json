@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "license": "MIT",
-  "description": "A paged, offline learning technology tree.",
+  "description": "An offline-first learning tech tree with tabbed maps, research queues, progress tracking, and custom JSON trees.",
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsx scripts/package-app.ts",
+    "package:release": "pnpm build && tsx scripts/package-release.ts",
     "preview": "vite preview",
     "check": "tsc --noEmit",
     "test": "vitest run",

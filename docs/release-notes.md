@@ -11,6 +11,8 @@ Current capabilities include:
 - Import of Loregrid V2 and legacy Learning Tech Tree V1 data.
 - A single-file offline build.
 
-The repository does not currently provide a hosted demo or GitHub Release.
+The project does not currently provide a hosted demo. Offline download packages are
+listed under [GitHub Releases](https://github.com/pheasant79/loregrid/releases).
+See the [v2.0.0-rc.9 notes](releases/v2.0.0-rc.9.md) for package contents and limitations.
 The root `index.html` is a ready-to-open offline application; see the [README](../README.md)
 for ordinary-user and developer workflows.

@@ -14,7 +14,12 @@ Search a tree, inspect relationships, build a learning queue, and keep personal 
 
 ## Use the ready app
 
-For ordinary use, choose **Code → Download ZIP** on GitHub, extract it, and open
+For ordinary use, open [Releases](https://github.com/pheasant79/loregrid/releases)
+and download the **`Loregrid-v…-offline.zip`** attachment. Extract the entire ZIP
+and open `index.html` in the extracted folder. Read `使用说明-START-HERE.txt`
+for folder access and backup instructions.
+
+**Code → Download ZIP** also works: extract it and open
 [`index.html`](index.html) in the top-level folder. (Cloning the repository works too.) It is the prepared offline
 application: it opens directly in a current Chromium or Firefox browser and does not
 require Node.js, pnpm, Vite, a server, or an account.
@@ -44,9 +49,13 @@ The command writes the disposable build to `dist/index.html` and refreshes the t
 ready app at the root `index.html`. `dist/` is ignored; the root `index.html` is the
 handoff file. The development HTML template lives in `src/index.html`.
 
+`pnpm package:release` builds an allowlisted user package under `dist/`, containing
+the ready app, the two distributed examples, an empty progress folder, instructions,
+and license notices. Personal trees and progress are never copied into that package.
+
 ## Explore a tree
 
-1. In Chromium, open the Tree library and choose **Choose data folder**, then select `data/`
+1. In Chromium, open the upper-left **⋯** menu and choose **Choose data folder**, then select `data/`
    (not `data/trees/`) and grant access. After access is granted, Loregrid reads `data/trees/`
    at startup while permission remains available. Use **Reconnect data folder** if permission
    expires and **Reload data folder** after editing a tree while the app is open.
