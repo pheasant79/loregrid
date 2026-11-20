@@ -22,13 +22,19 @@ in `progress/`; they are never written into a tree definition. Loregrid also kee
 active browser copy. Each saved progress change receives an update timestamp so the
 newer browser or folder copy can be restored after access is interrupted.
 
-The built-in folder picker is available in Chromium-based browsers on secure origins
-(such as localhost or HTTPS). Firefox and other browsers without this API should use
-**Import tree JSON** and the progress backup/restore controls. Manual import does not
-watch the source file; import it again after its contents change. The app does not
-silently scan the computer.
+The folder picker requires browser support and a secure context. The local Chrome build
+was checked with the standalone HTML opened directly from disk (`file://`): the folder
+picker API is available there too. Opening the HTML alone does not grant access to adjacent
+folders: open **Tree library → Choose data folder**, select `data/` (not `trees/`), and
+grant access first. Permission may need to be renewed later.
 
-The two fictional sample trees are tracked by Git. Other JSON files in `data/trees/` and
+Firefox and other browsers without this API should use **Import tree JSON** and the
+progress backup/restore controls. Manual import does not watch the source file; import
+it again after its contents change. The app does not silently scan the computer.
+
+The two example trees are tracked by Git. Only `loregrid-demo.json` is bundled into the
+ready HTML; `computer-science-phd.json` becomes available after connecting the folder or
+importing that file. Other JSON files in `data/trees/` and
 all progress JSON files are ignored by Git so personal data is not accidentally
 published. This keeps one place to find tree JSON; the `data/progress/` folder is only
 for progress created by the app.

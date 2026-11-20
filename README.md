@@ -6,7 +6,7 @@
 
 ![The 155-node All overview of Loregrid's computer science sample tree](docs/assets/loregrid-preview-en.jpg)
 
-*A full-tree view of the 155-node example. Fit the map to see its shape, then zoom in to read individual topics.*
+*The 155-node example in All view. Each column is a learning stage; zoom in to inspect individual topics and prerequisites.*
 
 Loregrid is an offline-first, open-source viewer for paged learning trees. Each tree has focused pages and one **All** view. Required prerequisites connect topics, including across pages, without forcing a subject into one linear course.
 
@@ -19,8 +19,10 @@ For ordinary use, choose **Code → Download ZIP** on GitHub, extract it, and op
 application: it opens directly in a current Chromium or Firefox browser and does not
 require Node.js, pnpm, Vite, a server, or an account.
 
-The app starts with a fictional example. Connect a local `data/` folder or import tree
-JSON files from the Tree library menu. See the [Chinese user guide](docs/README.zh-CN.md)
+The app starts with one fictional example bundled into the HTML. Opening the file directly
+does not scan nearby folders. To add trees, either import JSON files from the Tree library
+menu, or choose the repository's `data/` folder in a browser that supports folder access
+and grant access so Loregrid can read `data/trees/`. See the [Chinese user guide](docs/README.zh-CN.md)
 or the [English documentation index](docs/README.md).
 
 ## Build and develop
@@ -44,10 +46,12 @@ handoff file. The development HTML template lives in `src/index.html`.
 
 ## Explore a tree
 
-1. In Chromium, choose the `data/` folder from the menu. If browser permission remains
-   available, Loregrid reads `data/trees/` at startup; use **Reconnect data folder** if
-   permission expires and **Reload data folder** after editing a tree while the app is open.
-2. On browsers without folder access, import one or more V1 or V2 JSON files manually.
+1. In Chromium, open the Tree library and choose **Choose data folder**, then select `data/`
+   (not `data/trees/`) and grant access. After access is granted, Loregrid reads `data/trees/`
+   at startup while permission remains available. Use **Reconnect data folder** if permission
+   expires and **Reload data folder** after editing a tree while the app is open.
+2. To use a tree without connecting a folder, import one or more V1 or V2 JSON files manually.
+   This also works in browsers without folder access, including Firefox.
 3. Choose a page, or select **All** to see the whole active tree.
 4. Select topics to inspect prerequisites, add learning goals to the queue, and record progress.
 
