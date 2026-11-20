@@ -1,9 +1,9 @@
 # YART source map
 
 This map records the YART source areas reviewed when implementing Loregrid. The project
-uses the YART-owned code and textures identified in `THIRD_PARTY_NOTICES.md` under their
-MIT terms. Loregrid's TypeScript implementation is an adaptation, not a line-for-line
-port.
+uses the YART-owned code and textures identified in
+[the third-party notices](legal/THIRD_PARTY_NOTICES.md) under their MIT terms. Loregrid's
+TypeScript implementation is an adaptation, not a line-for-line port.
 
 ## Graph and layout
 

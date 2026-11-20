@@ -73,7 +73,20 @@ export function parseProgress(value: unknown, tree: TreeDefinitionV2): ProgressV
   const favorites = Array.isArray(rawUi.favorites)
     ? [...new Set(rawUi.favorites.map(normalizeGraphKey).filter((key): key is GraphKey => Boolean(key && key !== 'all')))]
     : [];
-  return { format: PROGRESS_FORMAT, treeId: tree.id, completed, notes, queue: orderQueue(queue, tree), ui: { language, lastGraphKey, lastPageKey, presets, favorites } };
+  const updatedAt = typeof record.updatedAt === 'string' && Number.isFinite(Date.parse(record.updatedAt))
+    ? record.updatedAt
+    : undefined;
+  return {
+    format: PROGRESS_FORMAT, treeId: tree.id, completed, notes, queue: orderQueue(queue, tree),
+    updatedAt, ui: { language, lastGraphKey, lastPageKey, presets, favorites },
+  };
+}
+
+export function isProgressNewer(candidate: ProgressV2, current: ProgressV2): boolean {
+  const candidateTime = candidate.updatedAt ? Date.parse(candidate.updatedAt) : Number.NaN;
+  const currentTime = current.updatedAt ? Date.parse(current.updatedAt) : Number.NaN;
+  if (!Number.isFinite(candidateTime)) return false;
+  return !Number.isFinite(currentTime) || candidateTime > currentTime;
 }
 
 export function loadProgress(

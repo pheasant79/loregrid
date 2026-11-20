@@ -164,6 +164,7 @@ export interface ProgressV2 {
   completed: Record<string, true>;
   notes: Record<string, string>;
   queue: string[];
+  updatedAt?: string;
   exportedAt?: string;
   ui?: {
     language?: 'zh-CN' | 'en';

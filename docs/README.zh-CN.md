@@ -19,8 +19,8 @@ pnpm dev
 
 ## 导入和浏览
 
-1. 打开右下角的「树库」，选择「添加 JSON 树」。
-2. 选择一个或多个 V1/V2 格式的树文件。
+1. 在 Chromium 浏览器中，从菜单选择仓库的 `data/` 文件夹；授权仍有效时，应用会在启动时读取 `trees/`。权限失效后，选择「重新授权数据文件夹」。
+2. AI 新建或更新树 JSON 后，放进 `data/trees/`；应用已打开时选择「重新读取数据文件夹」。Firefox 等浏览器可手动导入 JSON，更新后需再次导入。
 3. 使用左上角的分页选择器浏览；选择「总览」查看当前树。
 4. 选择节点查看说明和前置条件，再加入队列或记录完成状态。
 
@@ -28,8 +28,8 @@ pnpm dev
 
 ## 保存与备份
 
-- 树 JSON 保存学习内容。导入会复制到浏览器，不会修改原文件。
-- 队列、完成状态和私人笔记保存在当前浏览器。
+- 树 JSON 保存固定学习内容，应用只读取，不修改原文件。
+- 队列、完成状态和私人笔记保存在独立进度 JSON；连接数据文件夹时写入 `data/progress/`，并保留浏览器本地缓存。
 - 应用没有账号、后台或云同步；换浏览器或清除浏览器数据后，记录可能无法恢复。
 
 请保留原始 JSON，并为重要学习记录导出进度备份。更多信息见[隐私与本地存储](privacy.md)。
@@ -46,7 +46,7 @@ pnpm build
 
 ## 创建树文件
 
-复制 [`data/templates/minimal-template-v2.json`](../data/templates/minimal-template-v2.json)，按[树数据格式](data-format.md)填写，再运行：
+复制 [`templates/minimal-template-v2.json`](templates/minimal-template-v2.json)，按[树数据格式](data-format.md)填写，再把生成的 JSON 放入 `data/trees/`，然后运行：
 
 ```powershell
 pnpm validate -- path/to/tree.json

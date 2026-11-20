@@ -14,16 +14,23 @@ standalone offline HTML file.
 
 ## Local tree library and progress
 
-`TreeLibrary` stores imported trees in IndexedDB. Small catalog records let startup list
-trees without loading every graph. The app loads the selected tree; original files stay
-unchanged.
+`TreeLibrary` keeps a browser cache of imported trees in IndexedDB. When a user-selected
+data folder is available, the app reads `trees/*.json` at startup or on explicit refresh
+and updates cached definitions by stable tree ID and source filename. Tree files remain
+read-only to the app.
 
-Each imported file has its own library entry. Progress keys include the entry key and tree
-ID so separate files with the same ID do not share state. Queues, notes, favorites,
-presets, and page selection restore independently.
+Progress is separate from tree definitions. It is stored in browser storage and mirrored
+to `progress/<tree-id>.progress.json` when folder write permission is available. Update
+timestamps resolve which copy is newer after a disconnected session. Invalid disk
+progress is not overwritten automatically. The folder workflow requires unique tree IDs;
+duplicate IDs in one folder are reported and the duplicate file is skipped. A malformed
+tree file is reported independently while other valid files continue loading. Browsers
+without local folder access retain manual JSON import and progress backup/restore.
 
-This is browser storage, not folder scanning or synchronization. If persistent storage is
-unavailable, the app warns that imported trees last only for the current session.
+The app does not continuously watch folders. It reads once on startup when permission is
+available and on user request. Removing a source JSON removes its folder-backed library
+entry on the next successful sync; its browser progress remains available if the tree is
+imported again.
 
 ## Graph identity
 

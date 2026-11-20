@@ -1,6 +1,7 @@
 # Organize a tree
 
-Start from `data/templates/minimal-template-v2.json`. A tree is made of pages, nodes,
+Start from `docs/templates/minimal-template-v2.json`. Save authored trees in `data/trees/`.
+A tree is made of pages, nodes,
 resources, optional stages, and relationships.
 
 ## Choose pages

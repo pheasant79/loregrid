@@ -6,7 +6,7 @@ Loregrid preserves the original Learning Tech Tree repository history and licens
 
 Copyright (c) 2026 Learning Tech Tree contributors
 
-Licensed under the MIT License. The full license text remains in [`LICENSE`](LICENSE).
+Licensed under the MIT License. The full license text remains in [`LICENSE`](../../LICENSE).
 
 ## Yet Another Research Tree (YART)
 
@@ -26,4 +26,4 @@ YART is licensed under the MIT License:
 
 Source repository: `https://github.com/csh1668/YetAnotherResearchTree`
 
-The file-level behavior mapping is documented in [`docs/yart-source-map.md`](docs/yart-source-map.md).
+The file-level behavior mapping is documented in [`YART source map`](../yart-source-map.md).

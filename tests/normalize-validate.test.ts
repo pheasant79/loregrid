@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import legacy from '../data/compatibility/learning-tech-tree-v1-template.json';
+import legacy from './fixtures/compatibility/learning-tech-tree-v1-template.json';
 import { normalizeTree } from '../src/core/normalize';
 import { findRequiredCycle, validateTree } from '../src/core/validate';
 import { makeTree } from './fixtures';

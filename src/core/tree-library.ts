@@ -7,9 +7,7 @@ export interface TreeLibraryItem {
   fileName: string;
   addedAt: number;
   migrateLegacyProgress: boolean;
-  source?: 'builtin' | 'local' | 'public';
-  remoteUrl?: string;
-  cached?: boolean;
+  source?: 'builtin' | 'local' | 'folder';
 }
 
 export interface TreeLibraryEntry extends TreeLibraryItem {
@@ -42,6 +40,17 @@ export class TreeLibrary {
   }
 
   async add(tree: TreeDefinitionV2, fileName: string, migrateLegacyProgress = false): Promise<TreeLibraryEntry> {
+    const existing = (await this.list()).find((item) =>
+      (item.source === 'local' || item.source === 'folder') && item.treeId === tree.id,
+    );
+    if (existing) {
+      const entry: TreeLibraryEntry = {
+        key: existing.key, title: tree.title, treeId: tree.id, fileName: fileName.slice(0, 260),
+        tree, addedAt: existing.addedAt, migrateLegacyProgress: existing.migrateLegacyProgress, source: existing.source,
+      };
+      await this.put(entry);
+      return entry;
+    }
     const key = globalThis.crypto?.randomUUID?.() ?? `tree-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const entry: TreeLibraryEntry = {
       key, title: tree.title, treeId: tree.id, fileName: fileName.slice(0, 260),
@@ -51,20 +60,33 @@ export class TreeLibrary {
     return entry;
   }
 
-  async cachePublic(tree: TreeDefinitionV2, item: TreeLibraryItem): Promise<TreeLibraryEntry> {
+  async addFromFolder(tree: TreeDefinitionV2, fileName: string, preferredKey?: string): Promise<TreeLibraryEntry> {
+    const items = await this.list();
+    const previous = items.find((item) => item.treeId === tree.id && item.source !== 'builtin');
+    const key = preferredKey ?? previous?.key ?? `folder:${tree.id}`;
+    const previousLocal = items.find((item) => item.source === 'local' && item.treeId === tree.id && item.key !== key);
+    if (previousLocal) await this.remove(previousLocal.key);
+    const existing = await this.get(key);
     const entry: TreeLibraryEntry = {
-      ...item,
-      key: `public:${item.treeId}`,
-      title: tree.title,
-      treeId: tree.id,
-      tree,
-      addedAt: 0,
-      migrateLegacyProgress: false,
-      source: 'public',
-      cached: true,
+      key, title: tree.title, treeId: tree.id, fileName: fileName.slice(0, 260), tree,
+      addedAt: existing?.addedAt ?? Date.now(),
+      migrateLegacyProgress: existing?.migrateLegacyProgress ?? false,
+      source: 'folder',
     };
     await this.put(entry);
     return entry;
+  }
+
+  async remove(key: string): Promise<void> {
+    const database = await this.open();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(['trees', 'catalog'], 'readwrite');
+      transaction.objectStore('trees').delete(key);
+      transaction.objectStore('catalog').delete(key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
   }
 
   async ensureBuiltIn(tree: TreeDefinitionV2): Promise<void> {

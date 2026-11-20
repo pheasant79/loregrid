@@ -1,5 +1,5 @@
 // Adapted from YART SugiyamaLayout.ComputeColumnBudget / LimitColumnHeights /
-// BalanceRanks. Copyright (c) 2026 SeoHyeon, MIT; see THIRD_PARTY_NOTICES.md.
+// BalanceRanks. Copyright (c) 2026 SeoHyeon, MIT; see ../docs/legal/THIRD_PARTY_NOTICES.md.
 import { linkIndex, type LayoutLink } from './layout-model';
 
 /** Generic single-band rank balancing. No game tech eras or authored coordinates. */

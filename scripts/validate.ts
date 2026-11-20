@@ -18,7 +18,7 @@ async function main(): Promise<void> {
   const requested = process.argv.slice(2).filter((argument) => argument !== '--');
   const files = requested.length > 0
     ? requested
-    : await jsonFiles(resolve('data'));
+    : await jsonFiles(resolve('data/trees'));
   let failed = false;
 
   for (const file of files) {

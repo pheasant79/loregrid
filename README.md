@@ -37,8 +37,10 @@ Open `dist/index.html`. Build output is generated locally and is not committed.
 
 ## Explore a tree
 
-1. Open the tree library in the lower-right corner.
-2. Add one or more V1 or V2 JSON files.
+1. In Chromium, choose the `data/` folder from the menu. If browser permission remains
+   available, Loregrid reads `data/trees/` at startup; use **Reconnect data folder** if
+   permission expires and **Reload data folder** after editing a tree while the app is open.
+2. On browsers without folder access, import one or more V1 or V2 JSON files manually.
 3. Choose a page, or select **All** to see the whole active tree.
 4. Select topics to inspect prerequisites, add learning goals to the queue, and record progress.
 
@@ -46,11 +48,16 @@ Each imported tree keeps its own page, queue, completion state, and notes.
 
 ## Your files and progress
 
-Tree definitions are JSON files. Importing a tree copies it into this browser; it does not edit or monitor the original file. Progress and private notes are stored separately in the browser.
+Tree definitions live in `data/trees/`; AI or another authoring tool edits those JSON files.
+Loregrid reads them but never changes the tree definition. Completion, queue, and private
+notes are separate progress JSON files in `data/progress/` when the `data/` folder is
+connected. Browser-local storage remains a working cache. In unsupported browsers, use
+manual import and progress backup/restore. Progress updates are timestamped so reconnecting
+does not silently replace the newer saved copy with an older one.
 
 Loregrid has no account, backend, cloud sync, or telemetry. Browser data is not shared across devices or browser profiles, and clearing browser data may remove it. Keep your source JSON and export progress backups for anything important. See [privacy and storage](docs/privacy.md).
 
-To create a tree, copy [`data/templates/minimal-template-v2.json`](data/templates/minimal-template-v2.json), read the [tree format guide](docs/data-format.md), then validate the file:
+To create a tree, copy [`docs/templates/minimal-template-v2.json`](docs/templates/minimal-template-v2.json), read the [tree format guide](docs/data-format.md), then place the generated JSON in `data/trees/` and validate it:
 
 ```powershell
 pnpm validate -- path/to/tree.json
@@ -61,10 +68,10 @@ pnpm validate -- path/to/tree.json
 | Location | Purpose |
 | --- | --- |
 | `src/` | Application, graph model, layout, renderer, and Worker |
-| `data/examples/` | Fictional learning trees |
-| `data/templates/` | Starter JSON files |
-| `data/compatibility/` | Legacy-format test data |
-| `public/`, `schema/` | Optional public catalog, schemas, and web assets |
+| `data/trees/` | Example trees and user/AI-authored tree JSON |
+| `data/progress/` | Per-tree progress JSON; personal files are Git-ignored |
+| `docs/templates/` | Starter JSON template |
+| `schema/` | JSON schema for tree data |
 | `scripts/`, `tests/` | Validation tools and automated tests |
 | `docs/` | Guides and technical references |
 | `dist/` | Generated build output; recreated by `pnpm build` |
@@ -76,12 +83,12 @@ See the [repository layout](docs/repository-layout.md) for details.
 ```powershell
 pnpm check
 pnpm test
-pnpm validate -- data/examples/loregrid-demo.json
+pnpm validate -- data/trees/loregrid-demo.json
 pnpm build
 ```
 
-For browser tests, run `pnpm test:e2e`. For synthetic graph measurements, run `pnpm benchmark`. Read [architecture](docs/architecture.md), [performance notes](docs/performance.md), and [contributing](CONTRIBUTING.md).
+For browser tests, run `pnpm test:e2e`. For synthetic graph measurements, run `pnpm benchmark`. Read [architecture](docs/architecture.md), [performance notes](docs/performance.md), and [contributing](.github/CONTRIBUTING.md).
 
 ## License and attribution
 
-Loregrid is distributed under the MIT License and retains required upstream and third-party notices. See [`LICENSE`](LICENSE), [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), and the [YART source map](docs/yart-source-map.md).
+Loregrid is distributed under the MIT License and retains required upstream and third-party notices. See [`LICENSE`](LICENSE), [third-party notices](docs/legal/THIRD_PARTY_NOTICES.md), and the [YART source map](docs/yart-source-map.md).

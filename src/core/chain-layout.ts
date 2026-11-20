@@ -1,5 +1,5 @@
 // Adapted from YART SugiyamaLayout.ShapeChains / FitChain / UntangleChains /
-// ResolveDummyRuns. Copyright (c) 2026 SeoHyeon, MIT; see THIRD_PARTY_NOTICES.md.
+// ResolveDummyRuns. Copyright (c) 2026 SeoHyeon, MIT; see ../docs/legal/THIRD_PARTY_NOTICES.md.
 import { dummyChains, linkIndex, vertexSeparation, type LayoutLink, type LayoutVertex } from './layout-model';
 
 export interface ChainResult {

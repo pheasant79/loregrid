@@ -6,7 +6,11 @@ test-results/
 .vite/
 .cache/
 
-# Local-only learning data, progress exports, and task coordination records.
+# Personal trees and progress. Keep the fictional demo trees tracked.
+data/trees/*.json
+!data/trees/loregrid-demo.json
+!data/trees/computer-science-phd.json
+data/progress/*.json
 local-data/
 *.progress.json
 *-progress-*.json

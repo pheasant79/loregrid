@@ -18,7 +18,7 @@ import { propagateStageAssignments } from './stages';
 // The layered pipeline mirrors the generic Sugiyama stages used by YART:
 // rank balancing, shared long-edge trunks, crossing optimization, spring placement,
 // chain shaping and separation. Web-specific adaptations are documented below.
-// See THIRD_PARTY_NOTICES.md and docs/yart-source-map.md.
+// See docs/legal/THIRD_PARTY_NOTICES.md and docs/yart-source-map.md.
 
 const NODE_WIDTH = 200;
 const NODE_HEIGHT = 50;

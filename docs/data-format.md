@@ -3,8 +3,8 @@
 The current format is `loregrid/tree-v2`.
 
 - Schema: `schema/loregrid-tree-v2.schema.json`
-- Complete example: `data/examples/loregrid-demo.json`
-- Starter template: `data/templates/minimal-template-v2.json`
+- Complete example: `data/trees/loregrid-demo.json`
+- Starter template: `docs/templates/minimal-template-v2.json`
 
 ## Smallest valid tree
 

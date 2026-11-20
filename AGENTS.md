@@ -18,7 +18,7 @@ Loregrid is a general, paged learning-tech-tree viewer and versioned data format
 - Treat imported JSON as untrusted. Render user text with text nodes, allow only HTTP(S) external URLs, limit notes/text, and never execute imported HTML or script.
 - There is no node hard limit. Values beyond 10,000 may warn, but must not be rejected solely for size.
 - Keep personal trees, notes, progress, credentials, private paths, task records, generated reports, and temporary benchmark output out of public commits.
-- Preserve `LICENSE`, `THIRD_PARTY_NOTICES.md`, and `docs/yart-source-map.md`. YART-owned textures may be reused when their MIT notice is retained and the source is documented. Do not copy RimWorld game-owned assets or game-specific source into the standalone web application.
+- Preserve `LICENSE`, `docs/legal/THIRD_PARTY_NOTICES.md`, and `docs/yart-source-map.md`. YART-owned textures may be reused when their MIT notice is retained and the source is documented. Do not copy RimWorld game-owned assets or game-specific source into the standalone web application.
 
 ## Verification
 
@@ -27,7 +27,7 @@ Run checks appropriate to the change:
 ```powershell
 pnpm check
 pnpm test
-pnpm validate -- data/examples/loregrid-demo.json
+pnpm validate -- data/trees/loregrid-demo.json
 pnpm build
 pnpm test:e2e
 pnpm benchmark

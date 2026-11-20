@@ -5,6 +5,7 @@ import {
   clearLearningQueue,
   emptyProgress,
   inconsistentCompleted,
+  isProgressNewer,
   missingPrerequisites,
   moveQueuedNode,
   parseProgress,
@@ -18,6 +19,19 @@ import {
 import { makeTree } from './fixtures';
 
 describe('progress v2', () => {
+  it('keeps the newer browser or folder progress copy by timestamp', () => {
+    const tree = makeTree();
+    const base = { format: 'loregrid/progress-v2' as const, treeId: tree.id, completed: {}, notes: {}, queue: [] };
+    const older = parseProgress({ ...base, updatedAt: '2026-11-19T10:00:00.000Z' }, tree);
+    const newer = parseProgress({ ...base, updatedAt: '2026-11-19T11:00:00.000Z' }, tree);
+    const legacy = parseProgress(base, tree);
+
+    expect(isProgressNewer(newer, older)).toBe(true);
+    expect(isProgressNewer(older, newer)).toBe(false);
+    expect(isProgressNewer(newer, legacy)).toBe(true);
+    expect(isProgressNewer(legacy, newer)).toBe(false);
+  });
+
   it('upgrades legacy progress and removes unknown entries', () => {
     const tree = makeTree();
     const progress = parseProgress({

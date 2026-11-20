@@ -3,7 +3,7 @@
 ```text
 Use this Loregrid repository as the implementation reference. Read AGENTS.md,
 docs/create-with-codex.md, docs/data-format.md, docs/customization.md, and
-data/templates/minimal-template-v2.json before editing.
+docs/templates/minimal-template-v2.json before editing.
 
 Subject or interdisciplinary goal: [fill in]
 Starting knowledge: [fill in]
@@ -11,7 +11,7 @@ Desired outcomes: [fill in]
 Meaningful page/tab categories: [fill in or propose]
 Special interests and constraints: [fill in]
 Language and depth: [fill in]
-Output boundary: [public generic tree / private personal tree]
+Output boundary: fictional public example or private personal tree
 
 Create a loregrid/tree-v2 definition with stable IDs. Each node must belong to
 one primary tab and should have a clear scope and observable outcome. Use

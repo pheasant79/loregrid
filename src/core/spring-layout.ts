@@ -1,5 +1,5 @@
 // Adapted from YART SugiyamaLayout.SpringRelaxY / SpringPavProject
-// Copyright (c) 2026 SeoHyeon, MIT. See THIRD_PARTY_NOTICES.md.
+// Copyright (c) 2026 SeoHyeon, MIT. See ../docs/legal/THIRD_PARTY_NOTICES.md.
 
 export interface SpringNode {
   id: string;

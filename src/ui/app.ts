@@ -8,6 +8,7 @@ import {
   completeNode,
   completeWithPrerequisites,
   inconsistentCompleted,
+  isProgressNewer,
   loadProgress,
   missingPrerequisites,
   moveQueuedNode,
@@ -24,7 +25,7 @@ import type { GraphKey, LayoutNode, ProgressV2, TreeDefinitionV2, TreeNode } fro
 import { GraphRenderer } from './renderer';
 import { LayoutService } from './layout-service';
 import { TreeLibrary, type TreeLibraryEntry, type TreeLibraryItem } from '../core/tree-library';
-import { parsePublicTreeCatalog, publicCatalogCacheKey, serializePublicTreeCatalog, type PublicTreeDescriptor } from '../core/public-tree-library';
+import { LocalDataFolder } from '../core/local-data-folder';
 
 export class LoregridApp {
   private tree!: TreeDefinitionV2;
@@ -56,9 +57,11 @@ export class LoregridApp {
   private libraryImporting = false;
   private sessionTrees = new Map<string, TreeLibraryEntry>();
   private treeSelectionGeneration = 0;
-  private publicCatalogUrl = '';
+  private localData = new LocalDataFolder();
+  private localDataConnected = false;
+  private localDataPermissionNeeded = false;
 
-  constructor(private root: HTMLElement, initialTree: unknown) {
+  constructor(private root: HTMLElement, private initialTree: unknown) {
     this.renderShell();
     this.bindShell();
     this.renderer = new GraphRenderer(this.element('viewport'), {
@@ -66,7 +69,6 @@ export class LoregridApp {
       onNodeContextMenu: (node, event) => this.showNodeMenu(node, event),
       onViewChange: (view) => this.updateZoomLabel(view.scale),
     });
-    this.publicCatalogUrl = this.resolvePublicCatalogUrl();
     this.libraryReady = this.initializeLibrary(initialTree);
   }
 
@@ -86,6 +88,8 @@ export class LoregridApp {
                 <div id="moreMenu" class="more-menu" hidden>
                   <div id="favoriteList" class="favorite-list"></div>
                   <button id="openTree" type="button" data-i18n="openTree"></button>
+                  <button id="chooseDataFolder" type="button" data-i18n="chooseDataFolder"></button>
+                  <button id="refreshDataFolder" type="button" data-i18n="refreshDataFolder"></button>
                   <button id="exportTree" type="button" data-i18n="exportTree"></button>
                   <button id="backupProgress" type="button" data-i18n="backup"></button>
                   <button id="restoreProgress" type="button" data-i18n="restore"></button>
@@ -168,6 +172,10 @@ export class LoregridApp {
           </form>
         </dialog>
       </div>`;
+    if (!LocalDataFolder.isSupported()) {
+      this.element<HTMLButtonElement>('chooseDataFolder').hidden = true;
+      this.element<HTMLButtonElement>('refreshDataFolder').hidden = true;
+    }
   }
 
   private bindShell(): void {
@@ -382,9 +390,13 @@ export class LoregridApp {
       if (!(event.target as HTMLElement).closest('.tree-switcher')) this.setTreePickerOpen(false);
     });
     this.element<HTMLButtonElement>('exportTree').onclick = () => this.download(`${this.tree.id}.json`, JSON.stringify(this.tree, null, 2));
+    this.element<HTMLButtonElement>('chooseDataFolder').onclick = () => void this.chooseDataFolder();
+    this.element<HTMLButtonElement>('refreshDataFolder').onclick = () => void this.refreshDataFolder();
     this.element<HTMLButtonElement>('backupProgress').onclick = () => {
-      this.progress.exportedAt = new Date().toISOString();
-      this.download(`${this.tree.id}-progress-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(this.progress, null, 2));
+      this.progress = { ...this.progress, exportedAt: new Date().toISOString() };
+      this.persist();
+      if (this.localDataConnected) void this.writeProgressFile(true);
+      else this.download(`${this.tree.id}.progress.json`, JSON.stringify(this.progress, null, 2));
     };
     this.element<HTMLButtonElement>('restoreProgress').onclick = () => this.element<HTMLInputElement>('progressFile').click();
     this.element<HTMLInputElement>('progressFile').onchange = (event) => void this.restoreProgressFile(event);
@@ -465,20 +477,15 @@ export class LoregridApp {
       });
       await this.library.ensureBuiltIn(normalized.tree);
       this.libraryEntries = await this.library.list();
-      this.mergePublicCatalog(this.readCachedPublicCatalog());
+      await this.connectAndSyncDataFolder(normalized.tree.id);
       let lastKey: string | null = null;
       try { lastKey = localStorage.getItem('loregrid:active-tree'); } catch { /* Selection persistence is optional. */ }
       const item = this.libraryEntries.find((candidate) => candidate.key === lastKey)
-        ?? this.libraryEntries.find((candidate) => candidate.key === `builtin:${normalized.tree.id}`)!;
+        ?? this.libraryEntries.find((candidate) => candidate.key === `builtin:${normalized.tree.id}`)
+        ?? this.libraryEntries[0];
       let entry: TreeLibraryEntry | undefined;
-      if (item.key === builtinKey) entry = { ...item, tree: normalized.tree };
-      else if (item.source === 'public' && item.remoteUrl) {
-        entry = await this.library.get(item.key);
-        if (!entry && ['http:', 'https:'].includes(window.location.protocol)) {
-          try { entry = await this.loadPublicTree(item as PublicTreeDescriptor); }
-          catch { /* Keep the catalog visible and fall back to the bundled starter. */ }
-        }
-      } else entry = await this.library.get(item.key);
+      if (item?.key === builtinKey) entry = { ...item, tree: normalized.tree };
+      else if (item) entry = await this.library.get(item.key);
       const restored = entry ?? this.sessionTrees.get(builtinKey)!;
       this.sessionTrees.set(restored.key, restored);
       await this.loadTree(restored.tree, restored.key, restored.migrateLegacyProgress);
@@ -501,14 +508,144 @@ export class LoregridApp {
         ? 'Tree storage is unavailable. Trees added in this session will not survive a reload. Export your trees and progress.'
         : '树库存储不可用：本次添加的树刷新后不会保留。请导出树和进度备份。', true);
     } finally {
-      this.mergePublicCatalog(this.readCachedPublicCatalog());
       this.renderTreeLibrary();
-      void this.refreshPublicCatalog();
+    }
+  }
+
+  private async connectAndSyncDataFolder(starterTreeId: string): Promise<void> {
+    if (!LocalDataFolder.isSupported()) return;
+    try {
+      const status = await this.localData.connectSaved();
+      if (status === 'connected') {
+        this.localDataConnected = true;
+        await this.syncDataFolder(starterTreeId);
+      } else if (status === 'permission-needed') {
+        this.localDataPermissionNeeded = true;
+        this.element<HTMLButtonElement>('chooseDataFolder').textContent = t(this.language, 'reconnectDataFolder');
+      }
+    } catch {
+      this.localDataConnected = false;
+    }
+  }
+
+  private async chooseDataFolder(): Promise<void> {
+    try {
+      if (this.localDataPermissionNeeded) {
+        const ok = await this.localData.requestSavedPermission();
+        if (!ok) throw new Error(t(this.language, 'dataFolderPermissionNeeded'));
+      } else await this.localData.choose();
+      this.localDataConnected = true;
+      this.localDataPermissionNeeded = false;
+      const name = await this.localData.rootName() ?? 'data';
+      const starterTreeId = this.libraryEntries.find((entry) => entry.source === 'builtin')?.treeId ?? this.tree.id;
+      await this.syncDataFolder(starterTreeId);
+      this.element('treeSwitcherStatus').textContent = t(this.language, 'dataFolderConnected').replace('{name}', name);
+      this.toast(t(this.language, 'dataFolderConnected').replace('{name}', name));
+    } catch (error) {
+      this.toast(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  private async refreshDataFolder(): Promise<void> {
+    try {
+      if (!this.localDataConnected) {
+        if (!(await this.localData.requestSavedPermission())) {
+          this.toast(t(this.language, 'dataFolderPermissionNeeded'), true);
+          return;
+        }
+        this.localDataConnected = true;
+        this.localDataPermissionNeeded = false;
+      }
+      await this.syncDataFolder(normalizeTree(this.initialTree).tree.id);
+      this.toast(t(this.language, 'dataFolderRefreshed'));
+    } catch (error) {
+      this.toast(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  private async syncDataFolder(starterTreeId: string): Promise<void> {
+    const files = await this.localData.readTrees();
+    let activeUpdated: TreeLibraryEntry | undefined;
+    const seenTreeIds = new Set<string>();
+    const errors: string[] = files.filter((file) => file.error)
+      .map((file) => `${file.fileName}: ${file.error}`);
+    let incompleteScan = files.some((file) => file.error || file.skipped);
+    for (const file of files) {
+      if (file.error) continue;
+      try {
+        const normalized = normalizeTree(file.tree);
+        assertValidTree(normalized.tree);
+        if (seenTreeIds.has(normalized.tree.id)) throw new Error(`Duplicate tree ID "${normalized.tree.id}" in data/trees.`);
+        seenTreeIds.add(normalized.tree.id);
+        const entry = await this.library.addFromFolder(
+          normalized.tree,
+          file.fileName,
+          normalized.tree.id === starterTreeId ? `builtin:${starterTreeId}` : undefined,
+        );
+        this.sessionTrees.set(entry.key, entry);
+        const { tree: _tree, ...metadata } = entry;
+        this.libraryEntries = this.libraryEntries.filter((candidate) => candidate.key !== entry.key);
+        this.libraryEntries.push(metadata);
+        if (entry.treeId === this.tree?.id && entry.key === this.activeEntryKey) activeUpdated = entry;
+      } catch (error) {
+        incompleteScan = true;
+        errors.push(`${file.fileName}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (!seenTreeIds.has(starterTreeId) && !incompleteScan) {
+      const builtin = normalizeTree(this.initialTree).tree;
+      await this.library.ensureBuiltIn(builtin);
+      const entry: TreeLibraryEntry = {
+        key: `builtin:${builtin.id}`, title: builtin.title, treeId: builtin.id,
+        fileName: 'Loregrid starter', tree: builtin, addedAt: 0,
+        migrateLegacyProgress: true, source: 'builtin',
+      };
+      this.sessionTrees.set(entry.key, entry);
+      if (this.activeEntryKey === entry.key && this.tree?.id === starterTreeId) activeUpdated = entry;
+    }
+    const staleFolderItems = this.libraryEntries.filter((item) => !incompleteScan && item.source === 'folder'
+      && !seenTreeIds.has(item.treeId));
+    for (const item of staleFolderItems) {
+      await this.library.remove(item.key);
+      this.sessionTrees.delete(item.key);
+    }
+    this.libraryEntries = await this.library.list();
+    if (!this.libraryEntries.length) {
+      const builtin = normalizeTree(this.initialTree).tree;
+      await this.library.ensureBuiltIn(builtin);
+      this.libraryEntries = await this.library.list();
+    }
+    this.renderTreeLibrary();
+    if (activeUpdated) await this.loadTree(activeUpdated.tree, activeUpdated.key, false);
+    else if (this.activeEntryKey && !this.libraryEntries.some((item) => item.key === this.activeEntryKey)
+      && this.libraryEntries.length) {
+      const next = this.libraryEntries.find((item) => item.source === 'folder') ?? this.libraryEntries[0]!;
+      const entry = this.sessionTrees.get(next.key) ?? await this.library.get(next.key);
+      if (entry) await this.activateTree(entry);
+    }
+    if (errors.length) this.toast(errors.join(' · '), true);
+  }
+
+  private async writeProgressFile(showToast = false): Promise<void> {
+    try {
+      await this.localData.writeProgress(this.progress);
+      if (showToast) this.toast(t(this.language, 'progressSavedToFolder'));
+    } catch {
+      this.localDataConnected = false;
+      this.localDataPermissionNeeded = true;
+      this.element<HTMLButtonElement>('chooseDataFolder').textContent = t(this.language, 'reconnectDataFolder');
+      if (showToast) this.download(`${this.tree.id}.progress.json`, JSON.stringify(this.progress, null, 2));
+      else this.element('treeSwitcherStatus').textContent = t(this.language, 'dataFolderPermissionNeeded');
     }
   }
 
   private async activateTree(entry: TreeLibraryEntry, allowLegacyFallback = entry.migrateLegacyProgress): Promise<void> {
-    if (entry.key === this.activeEntryKey) { this.setTreePickerOpen(false); return; }
+    if (entry.key === this.activeEntryKey) {
+      this.sessionTrees.set(entry.key, entry);
+      this.setTreePickerOpen(false);
+      await this.loadTree(entry.tree, entry.key, allowLegacyFallback);
+      return;
+    }
     const generation = ++this.treeSelectionGeneration;
     this.setTreePickerOpen(false);
     this.sessionTrees.set(entry.key, entry);
@@ -524,12 +661,6 @@ export class LoregridApp {
     if (item.key === this.activeEntryKey) { this.setTreePickerOpen(false); return; }
     const generation = ++this.treeSelectionGeneration;
     try {
-      if (item.source === 'public' && item.remoteUrl) {
-        const entry = await this.loadPublicTree(item as PublicTreeDescriptor);
-        if (generation !== this.treeSelectionGeneration) return;
-        await this.activateTree(entry, false);
-        return;
-      }
       const entry = this.sessionTrees.get(item.key) ?? await this.library.get(item.key);
       if (generation !== this.treeSelectionGeneration) return;
       if (!entry) throw new Error(this.language === 'en' ? 'This tree is missing from local storage.' : '本地树库中找不到这棵树。');
@@ -539,121 +670,12 @@ export class LoregridApp {
     }
   }
 
-  private resolvePublicCatalogUrl(): string {
-    if (!__LOREGRID_PUBLIC_TREE_CATALOG_URL__) return '';
-    try {
-      const url = new URL(__LOREGRID_PUBLIC_TREE_CATALOG_URL__, document.baseURI);
-      return ['http:', 'https:'].includes(url.protocol) ? url.toString() : '';
-    } catch { return ''; }
-  }
-
-  private readCachedPublicCatalog(): PublicTreeDescriptor[] {
-    if (!this.publicCatalogUrl) return [];
-    try {
-      const raw = localStorage.getItem(publicCatalogCacheKey(this.publicCatalogUrl));
-      if (!raw) return [];
-      return parsePublicTreeCatalog(JSON.parse(raw), this.publicCatalogUrl).trees;
-    } catch { return []; }
-  }
-
-  private mergePublicCatalog(items: PublicTreeDescriptor[]): boolean {
-    const nonPublicEntries = this.libraryEntries.filter((entry) => entry.source !== 'public');
-    const catalogByKey = new Map(items.map((entry) => [entry.key, entry]));
-    const cachedPublicEntries = this.libraryEntries
-      .filter((entry): entry is TreeLibraryItem & { source: 'public' } => entry.source === 'public')
-      .filter((entry) => entry.cached && !catalogByKey.has(entry.key));
-    const cachedKeys = new Set(this.libraryEntries.filter((entry) => entry.cached).map((entry) => entry.key));
-    const nextEntries = [...nonPublicEntries, ...items.map((entry) => ({
-      ...entry, cached: cachedKeys.has(entry.key),
-    })), ...cachedPublicEntries];
-    const changed = nextEntries.length !== this.libraryEntries.length || nextEntries.some((entry, index) => {
-      const current = this.libraryEntries[index];
-      return !current || entry.key !== current.key || entry.title !== current.title
-        || entry.fileName !== current.fileName || entry.remoteUrl !== current.remoteUrl;
-    });
-    this.libraryEntries = nextEntries;
-    return changed;
-  }
-
-  private async refreshPublicCatalog(): Promise<void> {
-    if (!this.publicCatalogUrl || !['http:', 'https:'].includes(window.location.protocol)) return;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 8000);
-    try {
-      const response = await fetch(this.publicCatalogUrl, {
-        signal: controller.signal, cache: 'no-cache', credentials: 'omit', referrerPolicy: 'no-referrer',
-      });
-      if (!response.ok) throw new Error(`Catalog request failed (${response.status}).`);
-      const rawCatalog: unknown = await response.json();
-      const catalog = parsePublicTreeCatalog(rawCatalog, response.url || this.publicCatalogUrl);
-      const changed = this.mergePublicCatalog(catalog.trees);
-      try {
-        localStorage.setItem(publicCatalogCacheKey(this.publicCatalogUrl), serializePublicTreeCatalog(catalog));
-      } catch { /* Catalog cache is optional; remote discovery still works this session. */ }
-      if (changed) this.refreshTreeLibraryView();
-    } catch {
-      // The cached catalog and locally stored trees remain usable offline.
-    } finally {
-      window.clearTimeout(timeout);
-    }
-  }
-
   private refreshTreeLibraryView(): void {
     const focusedEntryKey = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.tree-choice')?.dataset.entryKey;
     this.renderTreeLibrary();
     if (focusedEntryKey) {
       [...this.element('treeList').querySelectorAll<HTMLButtonElement>('.tree-choice')]
         .find((choice) => choice.dataset.entryKey === focusedEntryKey)?.focus();
-    }
-  }
-
-  private async loadPublicTree(item: PublicTreeDescriptor): Promise<TreeLibraryEntry> {
-    const cached = this.sessionTrees.get(item.key) ?? await this.library.get(item.key).catch(() => undefined);
-    if (!['http:', 'https:'].includes(window.location.protocol)) {
-      if (cached) return cached;
-      throw new Error(this.language === 'en'
-        ? 'This public tree is not cached yet. Open it while online first.'
-        : '这棵公开树尚未缓存，请先在联网时打开一次。');
-    }
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 12_000);
-    try {
-      const response = await fetch(item.remoteUrl, {
-        cache: 'no-cache', signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer',
-      });
-      if (!response.ok) throw new Error(`Tree request failed (${response.status}).`);
-      if (response.url && !['http:', 'https:'].includes(new URL(response.url).protocol)) {
-        throw new Error('The public tree URL must use HTTP(S).');
-      }
-      const blob = await response.blob();
-      window.clearTimeout(timeout);
-      const text = await this.readImport(new File([blob], item.fileName));
-      if (text === null) throw new Error(this.language === 'en' ? 'Download cancelled.' : '已取消打开。');
-      const normalized = normalizeTree(JSON.parse(text));
-      assertValidTree(normalized.tree);
-      if (normalized.tree.id !== item.treeId) throw new Error('The public tree ID does not match its catalog entry.');
-      const currentItem = normalized.tree.title === item.title ? item : { ...item, title: normalized.tree.title };
-      let entry: TreeLibraryEntry = {
-        ...currentItem, tree: normalized.tree, addedAt: 0, migrateLegacyProgress: false, cached: true,
-      };
-      if (this.libraryAvailable) {
-        try { entry = await this.library.cachePublic(normalized.tree, currentItem); }
-        catch {
-          this.toast(this.language === 'en'
-            ? 'Opened for this session. The public tree could not be cached; export a backup.'
-            : '已打开，但无法保存离线缓存，仅本次会话可用。请导出备份。', true);
-        }
-      }
-      this.sessionTrees.set(entry.key, entry);
-      const { tree: _tree, ...metadata } = entry;
-      this.libraryEntries = this.libraryEntries.map((candidate) => candidate.key === entry.key ? metadata : candidate);
-      this.renderTreeLibrary();
-      return entry;
-    } catch (error) {
-      if (cached) return cached;
-      throw error;
-    } finally {
-      window.clearTimeout(timeout);
     }
   }
 
@@ -720,8 +742,7 @@ export class LoregridApp {
       const title = document.createElement('strong');
       title.textContent = entry.title;
       const fileName = document.createElement('small');
-      const source = entry.source === 'public' ? t(this.language, 'publicTree')
-        : entry.source === 'builtin' ? t(this.language, 'builtinTree') : t(this.language, 'localTree');
+      const source = entry.source === 'builtin' ? t(this.language, 'builtinTree') : t(this.language, 'localTree');
       fileName.textContent = `${source} · ${entry.fileName}`;
       identity.append(title, fileName);
       const count = document.createElement('span');
@@ -748,14 +769,31 @@ export class LoregridApp {
   private async loadTree(input: unknown, entryKey?: string, allowLegacyFallback = true): Promise<void> {
     const normalized = normalizeTree(input);
     assertValidTree(normalized.tree);
+    let loaded = loadProgress(normalized.tree, undefined, entryKey, allowLegacyFallback);
+    let invalidFolderProgress = false;
+    if (this.localDataConnected) {
+      try {
+        const diskProgress = await this.localData.readProgress(normalized.tree.id);
+        if (diskProgress !== undefined) {
+          const disk = parseProgress(diskProgress, normalized.tree);
+          if (isProgressNewer(loaded.progress, disk)) await this.localData.writeProgress(loaded.progress);
+          else {
+            restoreStoredProgress(disk, undefined, entryKey);
+            loaded = { progress: disk, migrated: false };
+          }
+        }
+      } catch {
+        invalidFolderProgress = true;
+      }
+    }
     this.closeNodeMenu();
     this.activeEntryKey = entryKey;
     this.tree = normalized.tree;
     this.nodeById = new Map(this.tree.nodes.map((node) => [node.id, node]));
     this.searchIndex = new SearchIndex(this.tree);
-    const loaded = loadProgress(this.tree, undefined, entryKey, allowLegacyFallback);
-    this.progressSaveBlocked = Boolean(loaded.saveBlocked);
+    this.progressSaveBlocked = Boolean(loaded.saveBlocked || invalidFolderProgress);
     this.progress = loaded.progress;
+    if (this.localDataConnected && !this.progressSaveBlocked) void this.writeProgressFile();
     this.language = chooseLanguage(this.tree.language, this.progress.ui?.language);
     const requestedKey = this.progress.ui?.lastGraphKey;
     const firstCategory = this.visibleTabs()[0];
@@ -785,7 +823,7 @@ export class LoregridApp {
     this.renderDetail();
     this.renderTreeLibrary();
     await this.switchGraph(this.graphKey, true);
-    if (loaded.saveBlocked) this.toast(t(this.language, 'storageRecovery'), true);
+    if (this.progressSaveBlocked) this.toast(t(this.language, 'storageRecovery'), true);
     else if (normalized.migratedFrom) this.toast(t(this.language, 'migrated'));
     else if (loaded.migrated) this.toast(t(this.language, 'progressMigrated'));
   }
@@ -1260,7 +1298,9 @@ export class LoregridApp {
   private persist(): void {
     if (this.progressSaveBlocked) { this.toast(t(this.language, 'storageRecovery'), true); return; }
     try {
+      this.progress = { ...this.progress, updatedAt: new Date().toISOString() };
       saveProgress(this.progress, undefined, this.activeEntryKey);
+      if (this.localDataConnected) void this.writeProgressFile();
       this.renderTreeLibrary();
     }
     catch { this.toast('Progress could not be saved. Export a backup.', true); }
@@ -1290,20 +1330,23 @@ export class LoregridApp {
     try {
       let first: { entry: TreeLibraryEntry; allowLegacy: boolean } | undefined;
       const errors: string[] = [];
+      const importedIds = new Set<string>();
       for (const file of files) {
         try {
           const text = await this.readImport(file); if (text === null) continue;
           const normalized = normalizeTree(JSON.parse(text));
           assertValidTree(normalized.tree);
+          if (importedIds.has(normalized.tree.id)) throw new Error(`Duplicate tree ID "${normalized.tree.id}" in selected files.`);
+          importedIds.add(normalized.tree.id);
           let duplicate: TreeLibraryEntry | undefined;
           for (const item of this.libraryEntries.filter((entry) =>
-            entry.fileName === file.name && entry.treeId === normalized.tree.id,
+            entry.treeId === normalized.tree.id && entry.source === 'local',
           )) {
             const existing = this.sessionTrees.get(item.key) ?? await this.library.get(item.key);
             if (existing && JSON.stringify(existing.tree) === JSON.stringify(normalized.tree)) { duplicate = existing; break; }
           }
           if (duplicate) { first ??= { entry: duplicate, allowLegacy: false }; continue; }
-          const allowLegacy = !this.libraryEntries.some((entry) => entry.treeId === normalized.tree.id);
+          const allowLegacy = !this.libraryEntries.some((entry) => entry.treeId === normalized.tree.id && entry.source === 'local');
           const entry: TreeLibraryEntry = this.libraryAvailable
             ? await this.library.add(normalized.tree, file.name, allowLegacy)
             : {
@@ -1311,6 +1354,7 @@ export class LoregridApp {
               fileName: file.name, tree: normalized.tree, addedAt: Date.now(), migrateLegacyProgress: allowLegacy,
             };
           const { tree: _tree, ...metadata } = entry;
+          this.libraryEntries = this.libraryEntries.filter((candidate) => candidate.key !== entry.key);
           this.libraryEntries.push(metadata);
           if (!this.libraryAvailable) this.sessionTrees.set(entry.key, entry);
           first ??= { entry, allowLegacy };

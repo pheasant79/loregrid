@@ -6,13 +6,13 @@ Choose a guide by task:
 
 - [简体中文使用指南](README.zh-CN.md): start Loregrid, import trees, browse pages, and back up progress.
 - [Privacy and storage](privacy.md): learn what stays in the browser and how to protect it.
+- [Local data folder](data-folder.md): connect trees and progress stored as files.
 
 ## Create tree data
 
 - [Tree data format](data-format.md): V2 structure, relationships, stages, and validation.
 - [Create a tree with Codex](create-with-codex.md): a careful workflow for drafting and checking content.
 - [Customization](customization.md): organize pages, prerequisites, and layout hints.
-- [Public tree library](public-tree-library.md): publish JSON trees through the optional catalog.
 
 ## Develop Loregrid
 
@@ -21,7 +21,7 @@ Choose a guide by task:
 - [Performance notes](performance.md): how to reproduce benchmarks and interpret results.
 - [YART comparison](yart-parity.md): adapted behavior and intentional differences.
 - [YART source map](yart-source-map.md): attribution and source references.
-- [Contributing](../CONTRIBUTING.md): code and data contribution checks.
+- [Contributing](../.github/CONTRIBUTING.md): code and data contribution checks.
 - [Publishing checklist](publish.md): privacy and release-readiness review.
 
 ## Project records

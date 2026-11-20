@@ -2,9 +2,13 @@ export type Language = 'zh-CN' | 'en';
 
 const messages = {
   'zh-CN': {
-    all: '总览', search: '搜索节点、标签或 ID', openTree: '添加树', exportTree: '导出树',
-    treeLibrary: '树库', addTree: '添加 JSON 树', searchTrees: '搜索树名或文件名', noTrees: '暂无可用的树', importingTrees: '正在导入树…',
-    builtinTree: '内置', localTree: '本地', publicTree: '公开',
+    all: '总览', search: '搜索节点、标签或 ID', openTree: '手动导入树 JSON', exportTree: '导出树 JSON',
+    treeLibrary: '树库', addTree: '导入 JSON 树', searchTrees: '搜索树名或文件名', noTrees: '暂无可用的树', importingTrees: '正在导入树…',
+    builtinTree: '示例', localTree: '本地',
+    chooseDataFolder: '选择数据文件夹', refreshDataFolder: '重新读取数据文件夹',
+    reconnectDataFolder: '重新授权数据文件夹',
+    dataFolderConnected: '已连接数据文件夹：{name}', dataFolderPermissionNeeded: '数据文件夹需要重新授权',
+    dataFolderRefreshed: '已重新读取数据文件夹', progressSavedToFolder: '进度已保存到 data/progress',
     treeStatus: '{queue} 项排队 · {count} 棵树',
     queue: '学习队列', addQueue: '加入队列', removeQueue: '移出队列',
     clearQueue: '清空', confirmClearQueue: '清空学习队列（{count} 项）？不会修改完成记录或笔记。',
@@ -22,9 +26,13 @@ const messages = {
     storageRecovery: '已保护原有存储：当前无法读取进度，自动保存已暂停。请恢复有效备份；本次修改可导出备份。',
   },
   en: {
-    all: 'All', search: 'Search nodes, tags, or IDs', openTree: 'Add tree', exportTree: 'Export tree',
-    treeLibrary: 'Tree library', addTree: 'Add JSON trees', searchTrees: 'Search tree or file name', noTrees: 'No trees available', importingTrees: 'Adding trees…',
-    builtinTree: 'Built-in', localTree: 'Local', publicTree: 'Public',
+    all: 'All', search: 'Search nodes, tags, or IDs', openTree: 'Import tree JSON', exportTree: 'Export tree JSON',
+    treeLibrary: 'Tree library', addTree: 'Import tree JSON', searchTrees: 'Search tree or file name', noTrees: 'No trees available', importingTrees: 'Adding trees…',
+    builtinTree: 'Example', localTree: 'Local',
+    chooseDataFolder: 'Choose data folder', refreshDataFolder: 'Reload data folder',
+    reconnectDataFolder: 'Reconnect data folder',
+    dataFolderConnected: 'Connected data folder: {name}', dataFolderPermissionNeeded: 'Data folder permission is needed',
+    dataFolderRefreshed: 'Data folder reloaded', progressSavedToFolder: 'Progress saved to data/progress',
     treeStatus: '{queue} queued · {count} trees',
     queue: 'Learning queue', addQueue: 'Add to queue', removeQueue: 'Remove from queue',
     clearQueue: 'Clear', confirmClearQueue: 'Clear the learning queue ({count} items)? Completion records and notes will be kept.',

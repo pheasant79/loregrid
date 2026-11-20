@@ -9,11 +9,12 @@ Decide:
 - The subject and intended learner.
 - What a learner should be able to do at the end.
 - The pages that make the subject easier to browse.
-- Which files are public and which are private.
+- Whether the tree is a fictional example or a private personal tree. Save authored
+  tree JSON in `data/trees/`; private files are ignored by Git.
 
 Read [`AGENTS.md`](../AGENTS.md), the [data format](data-format.md), the
 [customization guide](customization.md), and
-[`data/templates/minimal-template-v2.json`](../data/templates/minimal-template-v2.json).
+[`docs/templates/minimal-template-v2.json`](templates/minimal-template-v2.json).
 
 ## Build and review
 
