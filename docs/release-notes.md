@@ -11,5 +11,6 @@ Current capabilities include:
 - Import of Loregrid V2 and legacy Learning Tech Tree V1 data.
 - A single-file offline build.
 
-The repository does not currently provide a hosted demo or downloadable release.
-See the [README](../README.md) for setup and the [documentation index](README.md) for guides.
+The repository does not currently provide a hosted demo or GitHub Release. The tracked
+The root `index.html` is a ready-to-open offline application; see the [README](../README.md)
+for ordinary-user and developer workflows.

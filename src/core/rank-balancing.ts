@@ -2,8 +2,13 @@
 // BalanceRanks. Copyright (c) 2026 SeoHyeon, MIT; see ../docs/legal/THIRD_PARTY_NOTICES.md.
 import { linkIndex, type LayoutLink } from './layout-model';
 
-/** Generic single-band rank balancing. No game tech eras or authored coordinates. */
-export function balanceRanks(rank: Map<string, number>, edges: readonly LayoutLink[], unified: boolean): void {
+/** Generic era bands replace game tech levels; no authored coordinates. */
+export function balanceRanks(
+  rank: Map<string, number>,
+  edges: readonly LayoutLink[],
+  unified: boolean,
+  stageBounds?: ReadonlyMap<string, [number, number]>,
+): void {
   if (!rank.size) return;
   const down = linkIndex(edges);
   const up = linkIndex(edges, true);
@@ -17,14 +22,29 @@ export function balanceRanks(rank: Map<string, number>, edges: readonly LayoutLi
   const rows = Array<number>(last + 9).fill(0);
   const corridors = Array<number>(last + 9).fill(0);
   const maxChild = new Map<string, number>();
-  for (const id of ids) {
-    const r = rank.get(id)!;
-    rows[r]!++;
-    let end = r;
-    for (const child of down.get(id) ?? []) end = Math.max(end, rank.get(child)!);
-    maxChild.set(id, end);
-    for (let column = r + 1; column < end; column++) corridors[column]!++;
-  }
+  const recount = (): void => {
+    rows.fill(0); corridors.fill(0); maxChild.clear();
+    for (const id of ids) {
+      const r = rank.get(id)!;
+      rows[r]!++;
+      let end = r;
+      for (const child of down.get(id) ?? []) end = Math.max(end, rank.get(child)!);
+      maxChild.set(id, end);
+      for (let column = r + 1; column < end; column++) corridors[column]!++;
+    }
+  };
+  recount();
+  const bands = [...new Set(stageBounds?.values())];
+  const expandBand = (band: [number, number]): void => {
+    const insertion = band[1] + 1;
+    for (const [id, value] of rank) if (value >= insertion) rank.set(id, value + 1);
+    for (const other of bands) {
+      if (other === band) other[1]++;
+      else if (other[0] >= insertion) { other[0]++; other[1]++; }
+    }
+    last++;
+    recount();
+  };
   const contribution = (r: number, end: number, column: number): number => r < column && end > column ? 1 : 0;
   const height = (r: number): number => rows[r]! * 78 + corridors[r]! * 30;
   const overflow = (h: number): number => Math.max(0, (h - budget) / 78) ** 2;
@@ -32,6 +52,11 @@ export function balanceRanks(rank: Map<string, number>, edges: readonly LayoutLi
     let low = 0, high = last;
     for (const parent of up.get(id) ?? []) low = Math.max(low, rank.get(parent)! + 1);
     for (const child of down.get(id) ?? []) high = Math.min(high, rank.get(child)! - 1);
+    const stage = stageBounds?.get(id);
+    if (stage) {
+      low = Math.max(low, stage[0]);
+      high = Math.min(high, stage[1]);
+    }
     return [low, high];
   };
   const parentEndAfter = (parent: string, moving: string, target: number): number => {
@@ -79,10 +104,19 @@ export function balanceRanks(rank: Map<string, number>, edges: readonly LayoutLi
       if (height(column) <= budget || rows[column]! <= 6) break;
       const { id } = candidate;
       if (!withinSpan(id, column + 1)) continue;
-      if ((down.get(id) ?? []).some((child) => rank.get(child)! < column + 2)) continue;
+      const band = stageBounds?.get(id);
+      const needsExpansion = band && column === band[1];
+      if ((down.get(id) ?? []).some((child) =>
+        rank.get(child)! < column + 2 && (!needsExpansion || stageBounds?.get(child) === band))) continue;
       const added = (up.get(id) ?? []).filter((parent) => maxChild.get(parent)! <= column).length;
       if (-78 + added * 30 >= 0) continue;
-      if (column === last) { if (!extra) break; last++; extra--; }
+      if (needsExpansion) {
+        if (!extra) break;
+        expandBand(band);
+        extra--;
+      } else if (column === last) { if (!extra) break; last++; extra--; }
+      const [low, high] = bounds(id);
+      if (column + 1 < low || column + 1 > high) continue;
       move(id, column + 1);
     }
   }

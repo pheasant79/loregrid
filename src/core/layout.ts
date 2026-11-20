@@ -43,8 +43,8 @@ export function layoutGraph(view: GraphView): LayoutResult {
   const started = performance.now();
   const required = view.edges.filter((edge) => edge.type === 'required');
   const stagedNodes = computeEffectiveStages(view.nodes, required);
-  const rank = assignRanks(stagedNodes, required);
-  balanceRanks(rank, required, view.key === 'all' || view.key.startsWith('preset:'));
+  const { rank, bounds: stageRankBounds } = assignRanks(stagedNodes, required);
+  balanceRanks(rank, required, view.key === 'all' || view.key.startsWith('preset:'), stageRankBounds);
   const compact = new Map([...new Set(rank.values())].sort((a, b) => a - b).map((value, index) => [value, index]));
   for (const [id, value] of rank) rank.set(id, compact.get(value)!);
   const working = new Map<string, WorkingNode>();
@@ -209,7 +209,10 @@ function insertNodeReady(
   queue.splice(low, 0, id);
 }
 
-function assignRanks(nodes: GraphViewNode[], edges: GraphViewEdge[]): Map<string, number> {
+function assignRanks(
+  nodes: StagedGraphNode[],
+  edges: GraphViewEdge[],
+): { rank: Map<string, number>; bounds: Map<string, [number, number]> } {
   const indegree = new Map(nodes.map((node) => [node.viewId, 0]));
   const outgoing = new Map(nodes.map((node) => [node.viewId, [] as string[]]));
   for (const edge of edges) {
@@ -217,36 +220,65 @@ function assignRanks(nodes: GraphViewNode[], edges: GraphViewEdge[]): Map<string
     indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
     outgoing.get(edge.source)?.push(edge.target);
   }
+  const incoming = new Map(nodes.map((node) => [node.viewId, [] as string[]]));
+  for (const edge of edges) incoming.get(edge.target)?.push(edge.source);
+  const rank = new Map(nodes.map((node) => [node.viewId, 0]));
+  const topo: string[] = [];
   const queue = nodes
     .filter((node) => (indegree.get(node.viewId) ?? 0) === 0)
     .sort(nodeOrder)
     .map((node) => node.viewId);
-  const rank = new Map(nodes.map((node) => [node.viewId, 0]));
   let cursor = 0;
   while (cursor < queue.length) {
     const id = queue[cursor++];
     if (!id) continue;
+    topo.push(id);
     for (const target of outgoing.get(id) ?? []) {
-      rank.set(target, Math.max(rank.get(target) ?? 0, (rank.get(id) ?? 0) + 1));
       indegree.set(target, (indegree.get(target) ?? 1) - 1);
-      if (indegree.get(target) === 0) {
-        insertReady(queue, target, cursor, rank);
-      }
+      if (indegree.get(target) === 0) insertReady(queue, target, cursor, rank);
     }
   }
-  // YART TightenRanks in a single generic band; there are no game tech eras here.
-  const incoming = new Map(nodes.map((node) => [node.viewId, [] as string[]]));
-  for (const edge of edges) incoming.get(edge.target)?.push(edge.source);
+  // YART allocates a non-overlapping rank band per effective tech level before
+  // tightening and balancing. This is the key invariant that keeps a node in
+  // its era instead of deriving era rectangles after nodes have drifted.
+  const stageGroups = new Map<number | undefined, string[]>();
+  const byId = new Map(nodes.map((node) => [node.viewId, node]));
+  for (const id of topo) {
+    const order = byId.get(id)?.effectiveStageOrder;
+    const group = stageGroups.get(order) ?? [];
+    group.push(id); stageGroups.set(order, group);
+  }
+  const stageRankBounds = new Map<string, [number, number]>();
+  const hasStages = nodes.some((node) => node.effectiveStageOrder !== undefined);
+  let nextBase = 0;
+  for (const [order, ids] of [...stageGroups.entries()].sort(([a], [b]) => {
+    if (a === undefined) return -1;
+    if (b === undefined) return 1;
+    return a - b;
+  })) {
+    const base = nextBase;
+    let maxRank = base;
+    for (const id of ids) {
+      let lower = base;
+      for (const parent of incoming.get(id) ?? []) lower = Math.max(lower, (rank.get(parent) ?? 0) + 1);
+      rank.set(id, lower);
+      maxRank = Math.max(maxRank, lower);
+    }
+    const band: [number, number] = [base, maxRank];
+    if (hasStages) for (const id of ids) stageRankBounds.set(id, band);
+    nextBase = maxRank + 1;
+  }
   let maxRank = 0;
   for (const value of rank.values()) maxRank = Math.max(maxRank, value);
   for (let pass = 0; pass < 16; pass++) {
     let changed = false;
-    for (let index = queue.length - 1; index >= 0; index--) {
-      const id = queue[index]!;
+    for (let index = topo.length - 1; index >= 0; index--) {
+      const id = topo[index]!;
       const parents = incoming.get(id) ?? [];
       const children = outgoing.get(id) ?? [];
-      let lower = 0;
-      let upper = maxRank;
+      const band = stageRankBounds.get(id);
+      let lower = band?.[0] ?? 0;
+      let upper = band?.[1] ?? maxRank;
       for (const parent of parents) lower = Math.max(lower, (rank.get(parent) ?? 0) + 1);
       for (const child of children) upper = Math.min(upper, (rank.get(child) ?? 0) - 1);
       if (lower > upper) continue;
@@ -257,9 +289,7 @@ function assignRanks(nodes: GraphViewNode[], edges: GraphViewEdge[]): Map<string
     }
     if (!changed) break;
   }
-  const compact = new Map([...new Set(rank.values())].sort((a, b) => a - b).map((value, index) => [value, index]));
-  for (const [id, value] of rank) rank.set(id, compact.get(value)!);
-  return rank;
+  return { rank, bounds: stageRankBounds };
 }
 
 function insertReady(queue: string[], id: string, start: number, rank: Map<string, number>): void {

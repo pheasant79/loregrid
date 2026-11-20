@@ -37,6 +37,29 @@ test('uses All plus one flat page selector for the merged view', async ({ page }
   await expect(page.locator('#categorySelect')).toHaveValue('analysis');
 });
 
+test('preserves unfinished stage frames and neutral surfaces across eras', async ({ page }) => {
+  await page.locator('#tabs button').click();
+  const frames = await page.locator('.graph-node.status-locked').evaluateAll((elements) =>
+    elements.map((element) => {
+      const style = getComputedStyle(element);
+      return {
+        stage: (element as HTMLElement).style.getPropertyValue('--stage-color'),
+        border: style.borderTopColor,
+        background: style.backgroundColor,
+        width: style.borderTopWidth,
+      };
+    }),
+  );
+  const distinctStages = new Map(frames.map((frame) => [frame.stage, frame]));
+  expect(distinctStages.size).toBeGreaterThanOrEqual(2);
+  for (const frame of distinctStages.values()) {
+    expect(frame.border).not.toBe('rgb(83, 107, 130)');
+    expect(frame.background).toBe('rgb(9, 24, 45)');
+    expect(frame.width).toBe('2px');
+  }
+  expect(new Set([...distinctStages.values()].map((frame) => frame.border)).size).toBe(distinctStages.size);
+});
+
 test('keeps relation controls in the upper-right and zoom controls in the lower-left', async ({ page }) => {
   const viewport = await page.locator('#viewport').boundingBox();
   const relation = await page.locator('#toggleRelations').boundingBox();
@@ -428,12 +451,10 @@ test('downloads a sanitized V2 tree export', async ({ page }) => {
   expect(download.suggestedFilename()).toBe('loregrid-demo.json');
 });
 
-test('opens the production build directly from the filesystem', async ({ page }) => {
-  await page.goto(pathToFileURL(resolve('dist/index.html')).href);
+test('opens the root ready app directly from the filesystem', async ({ page }) => {
+  await page.goto(pathToFileURL(resolve('index.html')).href);
+  await expect(page.locator('.source-entry')).toHaveCount(0);
   await expect(page.locator('#treeTitle')).not.toBeEmpty();
-  if (process.env.LOREGRID_EXPECT_TREE_TITLE) {
-    await expect(page.locator('#treeTitle')).toHaveText(process.env.LOREGRID_EXPECT_TREE_TITLE);
-  }
   await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.9');
   await expect(page.locator('.graph-node').first()).toBeVisible();
   const currentPageCount = Number(((await page.locator('#graphStats').textContent()) ?? '').match(/\d+/)?.[0]);

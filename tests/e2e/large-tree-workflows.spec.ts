@@ -38,13 +38,37 @@ test('shows a V2 node stage in the details panel', async ({ page }) => {
   await expect(page.locator('.detail-stage')).toHaveText('阶段 · 基础准备');
 });
 
+test('keeps the 155-node stage labels at natural width while zooming out', async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    const calls: Array<{ text: string; argumentCount: number }> = [];
+    (window as Window & { __stageTextCalls?: typeof calls }).__stageTextCalls = calls;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...args) {
+      if (typeof text === 'string' && ['早期基础', '中学基础', '本科基础', '本科核心'].includes(text)) {
+        calls.push({ text, argumentCount: 1 + args.length });
+      }
+      return original.call(this, text, ...args);
+    };
+  });
+  await page.goto('/');
+  await page.locator('#treeFile').setInputFiles('data/trees/computer-science-phd.json');
+  await expect(page.locator('#layoutBusy')).toBeHidden();
+  for (let index = 0; index < 8; index++) await page.locator('#zoomOut').click();
+  const calls = await page.evaluate(() =>
+    (window as Window & { __stageTextCalls?: Array<{ text: string; argumentCount: number }> }).__stageTextCalls ?? [],
+  );
+  expect(calls.length).toBeGreaterThan(0);
+  expect(calls.every((call) => call.argumentCount === 3)).toBe(true);
+});
+
 test('opens the single file offline without external requests and renders imported text safely', async ({ page, context }) => {
   await context.setOffline(true);
   const requests: string[] = [];
   page.on('request', (request) => { if (/^https?:/.test(request.url())) requests.push(request.url()); });
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(pathToFileURL(resolve('dist/index.html')).href);
+  await page.goto(pathToFileURL(resolve('index.html')).href);
+  await expect(page.locator('.source-entry')).toHaveCount(0);
   await expect(page.locator('.graph-node').first()).toBeVisible();
   const input = JSON.parse(await readFile('data/trees/loregrid-demo.json', 'utf8'));
   input.id = 'safe-import';

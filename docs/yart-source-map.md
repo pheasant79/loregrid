@@ -24,7 +24,7 @@ the same node ordering or coordinates as YART.
 | Loregrid source | YART reference | Adapted behavior |
 | --- | --- | --- |
 | `src/ui/app.ts`, `src/core/progress.ts` | `MainTabWindow_YART.TopBar.cs`, `QueueBar.cs`, `Interaction.cs`, `Data/ResearchQueueManager.cs` | Page controls, queue operations, prerequisite-chain insertion, and progress. |
-| `src/ui/renderer.ts`, `src/ui/edge-routing.ts`, `src/styles.css` | `MainTabWindow_YART.Canvas.cs`, `Nodes.cs`, `Edges.cs`, `Rendering/EdgeRenderer.cs` | Node cards, curves, stage colors, stable edge ports, and shared long-edge trunks. |
+| `src/ui/renderer.ts`, `src/ui/edge-routing.ts`, `src/ui/edge-paint.ts`, `src/ui/stage-labels.ts`, `src/styles.css` | `MainTabWindow_YART.Canvas.cs`, `Nodes.cs`, `Edges.cs`, `Rendering/EdgeRenderer.cs` | Node cards, natural-width stage labels, completion-aware real/dummy endpoint colors, alpha-profile edge ribbons, stable ports, and deduplicated shared long-edge trunks. |
 | `src/assets/yart/` | `Textures/YART/NodePanel*.png`, `EdgeLine.png`, `GlowRadial.png`, `NoiseTile.png`, `Vignette.png`, status icons | YART-owned UI textures and status glyphs. |
 
 Loregrid draws the graph with Canvas and HTML elements. Its gradients and curves are

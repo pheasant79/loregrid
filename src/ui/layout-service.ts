@@ -16,7 +16,7 @@ export class LayoutService {
 
   request(view: GraphView, treeVersion: string): Promise<LayoutResult> {
     const id = ++this.sequence;
-    const cacheKey = `layout-v6:${treeVersion}:${view.key}:${fingerprint(view)}`;
+    const cacheKey = `layout-v7:${treeVersion}:${view.key}:${fingerprint(view)}`;
     if (!this.worker) {
       return new Promise((resolve, reject) => {
         window.setTimeout(() => {

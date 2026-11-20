@@ -12,28 +12,35 @@ Loregrid is an offline-first, open-source viewer for paged learning trees. Each 
 
 Search a tree, inspect relationships, build a learning queue, and keep personal progress. Loregrid is general-purpose: it does not prescribe a discipline, curriculum, institution, or study schedule.
 
-## Run locally
+## Use the ready app
 
-There is no hosted demo or downloadable release yet. Run the app on your computer:
+For ordinary use, choose **Code → Download ZIP** on GitHub, extract it, and open
+[`index.html`](index.html) in the top-level folder. (Cloning the repository works too.) It is the prepared offline
+application: it opens directly in a current Chromium or Firefox browser and does not
+require Node.js, pnpm, Vite, a server, or an account.
 
-**Requirements:** Node.js 20+ and pnpm.
+The app starts with a fictional example. Connect a local `data/` folder or import tree
+JSON files from the Tree library menu. See the [Chinese user guide](docs/README.zh-CN.md)
+or the [English documentation index](docs/README.md).
+
+## Build and develop
+
+Only contributors who change the TypeScript source need Node.js 20+ and pnpm:
 
 ```powershell
-git clone https://github.com/pheasant79/loregrid.git
-cd loregrid
 pnpm install
 pnpm dev
 ```
 
-Open the local address printed in the terminal. Loregrid starts with a fictional example. Core features work without an account or network access.
-
-To create a standalone offline HTML file:
+To regenerate the ready app after source changes:
 
 ```powershell
 pnpm build
 ```
 
-Open `dist/index.html`. Build output is generated locally and is not committed.
+The command writes the disposable build to `dist/index.html` and refreshes the tracked
+ready app at the root `index.html`. `dist/` is ignored; the root `index.html` is the
+handoff file. The development HTML template lives in `src/index.html`.
 
 ## Explore a tree
 
@@ -74,7 +81,8 @@ pnpm validate -- path/to/tree.json
 | `schema/` | JSON schema for tree data |
 | `scripts/`, `tests/` | Validation tools and automated tests |
 | `docs/` | Guides and technical references |
-| `dist/` | Generated build output; recreated by `pnpm build` |
+| `index.html` | Tracked, ready-to-open offline application |
+| `dist/` | Disposable generated build output; recreated by `pnpm build` |
 
 See the [repository layout](docs/repository-layout.md) for details.
 

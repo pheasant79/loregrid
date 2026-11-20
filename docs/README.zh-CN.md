@@ -6,9 +6,17 @@ Loregrid 用分页式关系图呈现学习主题。每棵树包含多个分页�
 
 *这是示例树的完整总览。先看整体结构，再放大查看节点。*
 
-## 启动
+## 普通用户启动
 
-目前没有在线演示或可下载版本。需要 Node.js 20+ 和 pnpm，在仓库目录运行：
+在 GitHub 点击 **Code → Download ZIP**，解压后打开根目录的 `index.html`；也可以克隆仓库。
+这是已经构建好的离线应用，不需要安装 Node.js、pnpm、Vite，也不需要启动服务器。根目录的
+[`index.html`](../index.html) 是开发入口，直接打开时会提供到成品的链接。
+
+应用会载入虚构示例树。通过树库菜单连接本地 `data/` 文件夹，或手动导入树 JSON。
+
+## 开发者启动
+
+只有修改 TypeScript 源码的开发者才需要 Node.js 20+ 和 pnpm，在仓库目录运行：
 
 ```powershell
 pnpm install
@@ -34,15 +42,14 @@ pnpm dev
 
 请保留原始 JSON，并为重要学习记录导出进度备份。更多信息见[隐私与本地存储](privacy.md)。
 
-## 离线使用
-
-生成可离线打开的单文件网页：
+## 重新生成成品
 
 ```powershell
 pnpm build
 ```
 
-打开 `dist/index.html`。构建输出不会提交到 Git。
+构建会更新根目录 `index.html`（用户直接打开的成品）。`src/index.html` 是开发模板，`dist/` 是忽略的构建中间产物，普通使用无需进入这两个目录。
+普通用户不需要执行这个命令。
 
 ## 创建树文件
 

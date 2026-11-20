@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const packageInfo = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 const bundledTree = process.env.LOREGRID_TREE_JSON
@@ -12,6 +13,8 @@ const bundledTreeLiteral = JSON.stringify(bundledTree)
   .replace(/\u2029/g, '\\u2029');
 
 export default defineConfig({
+  root: 'src',
+  publicDir: false,
   base: './',
   define: {
     __LOREGRID_VERSION__: JSON.stringify(packageInfo.version),
@@ -19,6 +22,8 @@ export default defineConfig({
   },
   plugins: [viteSingleFile()],
   build: {
+    outDir: '../dist',
+    emptyOutDir: true,
     target: 'es2022',
     cssCodeSplit: false,
     assetsInlineLimit: 100_000_000,
@@ -34,6 +39,7 @@ export default defineConfig({
     format: 'iife',
   },
   test: {
+    root: fileURLToPath(new URL('./', import.meta.url)),
     environment: 'jsdom',
     exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {

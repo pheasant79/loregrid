@@ -529,7 +529,11 @@ button:disabled { opacity: .45; cursor: default; }
 .queue-scrollbar-thumb:hover { background: #b1c0d0; }
 .queue-scrollbar:focus-visible { outline: 2px solid #a8c9e9; outline-offset: 2px; }
 
-.graph-node { border: 2px solid color-mix(in srgb, var(--stage-color) 76%, #536b82); }
+.graph-node {
+  border: 2px solid color-mix(in srgb, var(--stage-color) 76%, #536b82);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--stage-color) 18%, transparent), 0 2px 4px #0006;
+}
+.graph-node.status-locked { border-color: color-mix(in srgb, var(--stage-color) 76%, #536b82); }
 .graph-node.status-ready { border-color: color-mix(in srgb, var(--stage-color) 86%, #66778b); }
 .graph-node.status-completed {
   border: 2px solid var(--stage-color);
@@ -539,7 +543,8 @@ button:disabled { opacity: .45; cursor: default; }
     color-mix(in srgb, var(--stage-color) 14%, transparent)
   ), linear-gradient(135deg, #ffffff07 25%, transparent 25%), linear-gradient(315deg, #ffffff05 25%, transparent 25%);
   background-size: auto, 7px 7px, 7px 7px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--stage-color) 42%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--stage-color) 42%, transparent),
+    0 0 10px color-mix(in srgb, var(--stage-color) 24%, transparent);
 }
 .graph-node.status-completed::after { border-color: transparent; }
 .graph-node.status-completed .node-title { color: #f0f4f7; }

@@ -7,12 +7,12 @@
   "description": "A paged, offline learning technology tree.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && tsx scripts/package-app.ts",
     "preview": "vite preview",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "vite build && playwright test",
+    "test:e2e": "pnpm build && playwright test",
     "benchmark": "tsx scripts/benchmark.ts",
     "validate": "tsx scripts/validate.ts",
     "migrate": "tsx scripts/migrate-v1.ts"

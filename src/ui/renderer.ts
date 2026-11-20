@@ -3,8 +3,10 @@ import { statusOf } from '../core/progress';
 import { chooseLanguage, type Language } from '../core/i18n';
 import { SpatialIndex } from './spatial-index';
 import { DependencyFocus } from '../core/focus';
-import { computeStageBands, stageBandAtX, stageColor, type StageBand } from '../core/stages';
+import { computeStageBands, stageColor, type StageBand } from '../core/stages';
 import { distributeEdgePorts } from './edge-routing';
+import { blendColor, buildEdgeCurves } from './edge-paint';
+import { placeStageLabels } from './stage-labels';
 import edgeLineUrl from '../assets/yart/EdgeLine.png';
 
 export interface ViewTransform {
@@ -47,6 +49,7 @@ export class GraphRenderer {
   private minimapDirty = true;
   private edgeTextureBands: Array<{ width: number; alpha: number }> = [];
   private stageBands: StageBand[] = [];
+  private edgeCurves: ReturnType<typeof buildEdgeCurves> | null = null;
 
   constructor(private viewport: HTMLElement, callbacks: RendererCallbacks) {
     this.callbacks = callbacks;
@@ -94,6 +97,7 @@ export class GraphRenderer {
   }
 
   setData(layout: LayoutResult, tree: TreeDefinitionV2, progress: ProgressV2): void {
+    this.edgeCurves = null;
     this.clearRenderedNodes();
     this.minimapDirty = true;
     this.layout = layout;
@@ -113,6 +117,7 @@ export class GraphRenderer {
   }
 
   setProgress(progress: ProgressV2): void {
+    this.edgeCurves = null;
     this.clearRenderedNodes();
     this.minimapDirty = true;
     this.progress = progress;
@@ -141,11 +146,13 @@ export class GraphRenderer {
   }
 
   private updateFocus(): void {
+    this.edgeCurves = null;
     const id = this.hoveredId ?? this.selectedId;
     this.focusedNodes = id ? this.focusIndex?.connected(id) ?? new Set([id]) : new Set();
   }
 
   setRecommendedVisible(visible: boolean): void {
+    this.edgeCurves = null;
     this.showRecommended = visible;
     this.requestDraw();
   }
@@ -240,150 +247,65 @@ export class GraphRenderer {
   }
 
   private drawEdges(ctx: CanvasRenderingContext2D, layout: LayoutResult, tree: TreeDefinitionV2): void {
-    const nodeByViewId = new Map(layout.nodes.map((node) => [node.viewId, node]));
-    const visibleEdges = layout.edges.filter((edge) =>
-      edge.type !== 'related' && (edge.type !== 'recommended' || this.showRecommended));
-    const ports = distributeEdgePorts(layout.nodes, visibleEdges);
-    const selectedEdges = visibleEdges.map((edge) => {
-      const source = nodeByViewId.get(edge.source);
-      const target = nodeByViewId.get(edge.target);
-      return {
-        edge,
-        source,
-        target,
-        selected: Boolean(source && target && this.focusedNodes.has(source.nodeId) && this.focusedNodes.has(target.nodeId)),
-      };
-    }).sort((left, right) => Number(right.selected) - Number(left.selected));
-    const drawnRequiredSegments = new Set<string>();
+    if (!this.edgeCurves) {
+      const visibleEdges = layout.edges.filter((edge) =>
+        edge.type !== 'related' && (edge.type !== 'recommended' || this.showRecommended));
+      this.edgeCurves = buildEdgeCurves(
+        visibleEdges, layout.nodes, distributeEdgePorts(layout.nodes, visibleEdges),
+        this.progress!.completed, this.stageBands,
+        (node) => stageColor(tree, {
+          stageId: node.effectiveStageId ?? node.stageId,
+          stageOrder: node.effectiveStageOrder ?? node.stageOrder,
+        }), this.focusedNodes,
+      );
+    }
+    // Geometry, ports and trunk deduplication are cached across pan/zoom frames.
+    const margin = 100 / this.view.scale;
+    const left = -this.view.x / this.view.scale - margin;
+    const top = -this.view.y / this.view.scale - margin;
+    const right = left + this.viewport.clientWidth / this.view.scale + 2 * margin;
+    const bottom = top + this.viewport.clientHeight / this.view.scale + 2 * margin;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    for (const { edge, source, target, selected } of selectedEdges) {
-      const edgePorts = ports.get(edge.id);
-      const waypoints = edge.points.map((point, index) => ({
-        ...point,
-        y: index === 0 ? edgePorts?.sourceY ?? point.y
-          : index === edge.points.length - 1 ? edgePorts?.targetY ?? point.y
-            : point.y,
-      }));
-      const first = waypoints[0];
-      const last = waypoints.at(-1);
-      if (!first || !last) continue;
-      const margin = 100 / this.view.scale;
-      const left = -this.view.x / this.view.scale - margin;
-      const top = -this.view.y / this.view.scale - margin;
-      const right = left + this.viewport.clientWidth / this.view.scale + 2 * margin;
-      const bottom = top + this.viewport.clientHeight / this.view.scale + 2 * margin;
-      if (waypoints.every((point) => point.x < left) || waypoints.every((point) => point.x > right)
-        || waypoints.every((point) => point.y < top) || waypoints.every((point) => point.y > bottom)) continue;
-      const dx = last.x - first.x;
-      const cap = Math.abs(dx) * 0.9;
-      let startOffset = Math.max(cap * 0.5, 30);
-      let endOffset = Math.max(cap * 0.5, 30);
-      const sum = startOffset + endOffset;
-      if (sum > cap && cap > 0) { startOffset *= cap / sum; endOffset *= cap / sum; }
-      const direction = Math.sign(dx || 1);
-      const neutralColor = edge.type === 'recommended' ? '#71859a' : '#687b94';
-      const edgeAlpha = selected ? 0.92 : 0.72;
-      const lineWidth = selected ? Math.max(2 / this.view.scale, 3) : edge.type === 'recommended' ? Math.max(1.2 / this.view.scale, 1.3) : Math.max(1.5 / this.view.scale, 2);
-      ctx.lineWidth = lineWidth;
-      ctx.setLineDash(edge.type === 'recommended' ? [7, 7] : []);
-      const stageColorAtEdgeX = (x: number): string => {
-        if (edge.type === 'recommended') return neutralColor;
-        const transition = this.stageBands.slice(1).find((band) => Math.abs(x - band.left) < 42);
-        let color = this.stageColorAtX(x, tree);
-        if (transition) {
-          const index = this.stageBands.indexOf(transition);
-          const previous = this.stageBands[index - 1];
-          if (previous) {
-            const amount = clamp((x - (transition.left - 42)) / 84, 0, 1);
-            color = blendHex(previous.color, transition.color, amount);
-          }
-        }
-        return blendHex(color, neutralColor, 0.14);
-      };
-      const strokeCurve = (
-        from: { x: number; y: number },
-        control1: { x: number; y: number },
-        control2: { x: number; y: number },
-        to: { x: number; y: number },
-      ) => {
-        const segmentKey = edge.type === 'required'
-          ? [from, control1, control2, to].map((point) => `${Math.round(point.x * 1000)}:${Math.round(point.y * 1000)}`).join('|')
-          : undefined;
-        if (segmentKey && drawnRequiredSegments.has(segmentKey)) return;
-        if (segmentKey) drawnRequiredSegments.add(segmentKey);
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
-        ctx.strokeStyle = selected ? '#d5e2ef' : makeEdgeGradient(ctx, from.x, to.x, stageColorAtEdgeX, this.stageBands);
-        if (this.edgeTextureBands.length && edge.type === 'required') {
-          let previousAlpha = 0;
-          for (const band of this.edgeTextureBands) {
-            const targetAlpha = band.alpha * edgeAlpha;
-            ctx.globalAlpha = (targetAlpha - previousAlpha) / (1 - previousAlpha);
-            ctx.lineWidth = lineWidth * band.width;
-            ctx.stroke();
-            previousAlpha = targetAlpha;
-          }
-        } else {
-          ctx.globalAlpha = edgeAlpha;
-          ctx.stroke();
-        }
-      };
-      const strokeRecommended = (
-        from: { x: number; y: number },
-        control1: { x: number; y: number },
-        control2: { x: number; y: number },
-        to: { x: number; y: number },
-      ) => {
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
-        ctx.strokeStyle = selected ? '#d5e2ef' : neutralColor;
-        ctx.globalAlpha = edgeAlpha;
-        ctx.lineWidth = lineWidth;
+    for (const curve of this.edgeCurves) {
+      const { from, control1, control2, to, type, selected } = curve;
+      if (Math.max(from.x, to.x) < left || Math.min(from.x, to.x) > right
+        || Math.max(from.y, to.y) < top || Math.min(from.y, to.y) > bottom) continue;
+      const gradient = ctx.createLinearGradient(
+        from.x, from.y, to.x === from.x && to.y === from.y ? to.x + .001 : to.x, to.y,
+      );
+      gradient.addColorStop(0, selected ? blendColor(curve.startColor, '#ffffff', .48) : curve.startColor);
+      gradient.addColorStop(1, selected ? blendColor(curve.endColor, '#ffffff', .48) : curve.endColor);
+      ctx.strokeStyle = gradient;
+      const lineWidth = type === 'recommended' ? Math.max(1.2 / this.view.scale, 1.3) : Math.max(2 / this.view.scale, 3);
+      ctx.setLineDash(type === 'recommended' ? [7, 7] : []);
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.bezierCurveTo(control1.x, control1.y, control2.x, control2.y, to.x, to.y);
+      if (type === 'required') {
+        // A narrow, low-alpha fringe plus YART's alpha-profile core, rather
+        // than a flat dim stroke or expensive per-edge shadowBlur.
+        ctx.globalAlpha = selected ? .12 : .07;
+        ctx.lineWidth = lineWidth * 2.2;
         ctx.stroke();
-      };
-
-      if (edge.type === 'recommended') {
-        if (waypoints.length > 2) {
-          for (let index = 1; index < waypoints.length; index++) {
-            const from = waypoints[index - 1]!;
-            const to = waypoints[index]!;
-            const bend = (to.x - from.x) / 2;
-            strokeRecommended(from, { x: from.x + bend, y: from.y }, { x: to.x - bend, y: to.y }, to);
-          }
-        } else {
-          strokeRecommended(
-            first,
-            { x: first.x + startOffset * direction, y: first.y },
-            { x: last.x - endOffset * direction, y: last.y },
-            last,
-          );
-        }
-      } else if (waypoints.length > 2) {
-        for (let index = 1; index < waypoints.length; index++) {
-          const from = waypoints[index - 1]!;
-          const to = waypoints[index]!;
-          const bend = (to.x - from.x) / 2;
-          strokeCurve(from, { x: from.x + bend, y: from.y }, { x: to.x - bend, y: to.y }, to);
+      }
+      if (this.edgeTextureBands.length && type === 'required') {
+        let previousAlpha = 0;
+        for (const band of this.edgeTextureBands) {
+          const targetAlpha = band.alpha * (selected ? 1 : .95);
+          ctx.globalAlpha = previousAlpha < 1 ? (targetAlpha - previousAlpha) / (1 - previousAlpha) : 0;
+          ctx.lineWidth = lineWidth * band.width;
+          ctx.stroke();
+          previousAlpha = targetAlpha;
         }
       } else {
-        strokeCurve(
-          first,
-          { x: first.x + startOffset * direction, y: first.y },
-          { x: last.x - endOffset * direction, y: last.y },
-          last,
-        );
+        ctx.globalAlpha = type === 'recommended' ? .72 : .95;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
       }
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
-  }
-
-  private stageColorAtX(x: number, tree: TreeDefinitionV2): string {
-    const band = stageBandAtX(this.stageBands, x);
-    return band ? stageColor(tree, { stageId: band.stageId }) : '#687b94';
   }
 
   private drawNodes(layout: LayoutResult, tree: TreeDefinitionV2, progress: ProgressV2): void {
@@ -586,11 +508,6 @@ function drawStageBands(
   ctx.font = '600 11px Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  // Labels stay near the top edge; only one under the relation toggle is moved below it.
-  const labelY = 8;
-  const relationLeft = viewportWidth - 16 - relationControlWidth;
-  const relationRight = viewportWidth - 16;
-  const relationBottom = labelY + 35;
   bands.forEach((band) => {
     const left = band.left * view.scale + view.x;
     const right = band.right * view.scale + view.x;
@@ -607,18 +524,11 @@ function drawStageBands(
     ctx.lineTo(Math.round(left) + 0.5, viewportHeight);
     ctx.stroke();
 
-    const visibleWidth = Math.min(viewportWidth, right) - Math.max(0, left);
-    if (visibleWidth >= 72) {
-      const labelX = Math.max(8, left + 10);
-      const rightEdge = Math.min(right, viewportWidth);
-      const labelMaxWidth = Math.max(0, rightEdge - labelX - 12);
-      ctx.fillStyle = band.color;
-      const labelWidth = Math.min(ctx.measureText(band.label).width, labelMaxWidth);
-      const overlapsRelationControl = relationControlWidth > 0
-        && labelX < relationRight && labelX + labelWidth > relationLeft;
-      ctx.fillText(band.label, labelX, overlapsRelationControl ? relationBottom + 6 : labelY, labelMaxWidth);
-    }
   });
+  for (const label of placeStageLabels(bands, view, viewportWidth, relationControlWidth, (text) => ctx.measureText(text).width)) {
+    ctx.fillStyle = label.color;
+    ctx.fillText(label.text, label.x, label.y);
+  }
   ctx.restore();
 }
 
@@ -628,42 +538,6 @@ function rgba(hex: string, alpha: number): string {
   const green = Number.parseInt(value.slice(2, 4), 16);
   const blue = Number.parseInt(value.slice(4, 6), 16);
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-}
-
-function blendHex(color: string, neutral: string, amount: number): string {
-  const parse = (value: string) => [1, 3, 5].map((offset) => Number.parseInt(value.slice(offset, offset + 2), 16));
-  const [red, green, blue] = parse(color);
-  const [neutralRed, neutralGreen, neutralBlue] = parse(neutral);
-  return `#${[red, green, blue].map((channel, index) => {
-    const target = [neutralRed, neutralGreen, neutralBlue][index]!;
-    return Math.round(channel! * (1 - amount) + target * amount).toString(16).padStart(2, '0');
-  }).join('')}`;
-}
-
-function makeEdgeGradient(
-  ctx: CanvasRenderingContext2D,
-  fromX: number,
-  toX: number,
-  colorAtX: (x: number) => string,
-  bands: readonly StageBand[],
-): CanvasGradient {
-  const left = Math.min(fromX, toX);
-  const right = Math.max(fromX, toX);
-  const end = right > left ? right : left + 1;
-  const gradient = ctx.createLinearGradient(left, 0, end, 0);
-  const stops = new Set([left, right]);
-  for (const band of bands.slice(1)) {
-    for (const x of [band.left - 42, band.left, band.left + 42]) {
-      if (x > left && x < right) stops.add(x);
-    }
-  }
-  const sorted = [...stops].sort((a, b) => a - b);
-  sorted.forEach((x) => gradient.addColorStop(
-    right > left ? (x - left) / (right - left) : 0,
-    colorAtX(x),
-  ));
-  if (right === left) gradient.addColorStop(1, colorAtX(left));
-  return gradient;
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));

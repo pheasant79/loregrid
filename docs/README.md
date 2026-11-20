@@ -29,4 +29,5 @@ Choose a guide by task:
 - [Release notes](release-notes.md): current project-level change summary.
 - [Evidence and verification](evidence.md): how to report test and benchmark results.
 
-There is no hosted demo or downloadable GitHub release yet. The repository [README](../README.md) has the local start instructions.
+For ordinary use, open the tracked [ready app](../index.html). Contributors who change
+the source use the development instructions in the repository [README](../README.md).

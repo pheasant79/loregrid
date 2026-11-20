@@ -1,7 +1,8 @@
 # Architecture at a glance
 
 Loregrid is a TypeScript application with no UI framework. Vite builds it into a
-standalone offline HTML file.
+standalone offline HTML file. The tracked root `index.html` is the ordinary-user entry;
+`src/index.html` is the source/developer template.
 
 ## How a tree reaches the screen
 
