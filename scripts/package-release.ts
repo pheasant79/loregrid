@@ -24,7 +24,8 @@ const sourceMap = (await readFile(resolve(root, 'docs/yart-source-map.md'), 'utf
   .replace('(legal/THIRD_PARTY_NOTICES.md)', '(THIRD_PARTY_NOTICES.md)')
   .replace('(yart-parity.md)', '(https://github.com/pheasant79/loregrid/blob/main/docs/yart-parity.md)');
 await writeFile(resolve(destination, 'licenses/yart-source-map.md'), sourceMap, 'utf8');
-await writeFile(resolve(destination, '使用说明-START-HERE.txt'), `Loregrid ${manifest.version} — offline preview / 离线预发布版
+const releaseLabel = manifest.version.includes('-') ? 'offline preview / 离线预发布版' : 'offline release / 离线正式版';
+await writeFile(resolve(destination, '使用说明-START-HERE.txt'), `Loregrid ${manifest.version} — ${releaseLabel}
 
 启动 / Open
 解压整个压缩包，双击 index.html。不要在压缩包内直接运行。

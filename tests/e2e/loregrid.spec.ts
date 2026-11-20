@@ -455,7 +455,7 @@ test('opens the root ready app directly from the filesystem', async ({ page }) =
   await page.goto(pathToFileURL(resolve('index.html')).href);
   await expect(page.locator('.source-entry')).toHaveCount(0);
   await expect(page.locator('#treeTitle')).not.toBeEmpty();
-  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.9');
+  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0');
   await expect(page.locator('.graph-node').first()).toBeVisible();
   const currentPageCount = Number(((await page.locator('#graphStats').textContent()) ?? '').match(/\d+/)?.[0]);
   await page.locator('#tabs button').first().click();

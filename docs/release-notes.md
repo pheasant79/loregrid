@@ -13,6 +13,6 @@ Current capabilities include:
 
 The project does not currently provide a hosted demo. Offline download packages are
 listed under [GitHub Releases](https://github.com/pheasant79/loregrid/releases).
-See the [v2.0.0-rc.9 notes](releases/v2.0.0-rc.9.md) for package contents and limitations.
+See the [v2.0.0 notes](releases/v2.0.0.md) for package contents and limitations.
 The root `index.html` is a ready-to-open offline application; see the [README](../README.md)
 for ordinary-user and developer workflows.

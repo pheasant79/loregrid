@@ -282,5 +282,5 @@ test('loads 10000 nodes, switches pages, searches globally and measures pan and 
 
 test('shows the concrete build version in the app footer', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0-rc.9');
+  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0');
 });
