@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LayoutEdge, LayoutNode, Point } from '../src/core/types';
 import type { StageBand } from '../src/core/stages';
-import { blendColor, buildEdgeCurves, EDGE_DEFAULT, edgeEndpointColor } from '../src/ui/edge-paint';
+import { blendColor, buildEdgeCurves, EDGE_DEFAULT, edgeEndpointColor, edgeZoomStyle } from '../src/ui/edge-paint';
 
 const node = (id: string, x: number, y = 0): LayoutNode => ({
   viewId: id, nodeId: id, title: id, tabId: 'page', nodeKind: 'topic',
@@ -19,6 +19,12 @@ const edge = (id: string, points: Point[], to = 'target'): LayoutEdge => ({
 });
 
 describe('YART completion-aware edge paint', () => {
+  it('preserves completion hues and a readable screen width at low zoom', () => {
+    expect(edgeZoomStyle(0.5)).toEqual({ alpha: 1, desaturation: 0, minScreenWidth: 2 });
+    expect(edgeZoomStyle(0.2)).toEqual({ alpha: 0.9, desaturation: 0, minScreenWidth: 2 });
+    expect(edgeZoomStyle(0.08)).toEqual(edgeZoomStyle(0.2));
+  });
+
   it.each([
     [{}, EDGE_DEFAULT, EDGE_DEFAULT],
     [{ source: true }, blendColor(colors(source), EDGE_DEFAULT, .3), EDGE_DEFAULT],

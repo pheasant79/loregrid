@@ -45,6 +45,7 @@ export function layoutGraph(view: GraphView): LayoutResult {
   const stagedNodes = computeEffectiveStages(view.nodes, required);
   const { rank, bounds: stageRankBounds } = assignRanks(stagedNodes, required);
   balanceRanks(rank, required, view.key === 'all' || view.key.startsWith('preset:'), stageRankBounds);
+  spreadIsolatedRanks(stagedNodes, required, rank);
   const compact = new Map([...new Set(rank.values())].sort((a, b) => a - b).map((value, index) => [value, index]));
   for (const [id, value] of rank) rank.set(id, compact.get(value)!);
   const working = new Map<string, WorkingNode>();
@@ -132,6 +133,51 @@ export function layoutGraph(view: GraphView): LayoutResult {
     durationMs: performance.now() - started,
     stageBoundaries: buildStageBoundaries(nodes),
   };
+}
+
+function spreadIsolatedRanks(nodes: StagedGraphNode[], edges: GraphViewEdge[], rank: Map<string, number>): void {
+  const incoming = new Map(nodes.map((node) => [node.viewId, 0]));
+  const outgoing = new Map(nodes.map((node) => [node.viewId, 0]));
+  for (const edge of edges) {
+    if (incoming.has(edge.target)) incoming.set(edge.target, incoming.get(edge.target)! + 1);
+    if (outgoing.has(edge.source)) outgoing.set(edge.source, outgoing.get(edge.source)! + 1);
+  }
+  const isolated = nodes.filter((node) => incoming.get(node.viewId) === 0 && outgoing.get(node.viewId) === 0).sort(nodeOrder);
+  const connected = nodes.filter((node) => incoming.get(node.viewId)! > 0 || outgoing.get(node.viewId)! > 0);
+  if (!isolated.length) return;
+  if (!connected.length) {
+    const groups = new Map<number | undefined, StagedGraphNode[]>();
+    isolated.forEach((node) => {
+      const group = groups.get(node.effectiveStageOrder) ?? [];
+      group.push(node);
+      groups.set(node.effectiveStageOrder, group);
+    });
+    let base = 0;
+    for (const [, group] of [...groups.entries()].sort(([a], [b]) => (a ?? -Infinity) - (b ?? -Infinity))) {
+      const columns = Math.max(1, Math.ceil(Math.sqrt(group.length)));
+      group.forEach((node, index) => rank.set(node.viewId, base + index % columns));
+      base += columns;
+    }
+    return;
+  }
+  const load = new Map<number, number>();
+  connected.forEach((node) => { const r = rank.get(node.viewId)!; load.set(r, (load.get(r) ?? 0) + 1); });
+  const columns = [...load.keys()].sort((a, b) => a - b);
+  for (const node of isolated) {
+    const sameStage = columns.filter((column) => connected.some((entry) => rank.get(entry.viewId) === column && entry.effectiveStageOrder === node.effectiveStageOrder));
+    if (node.effectiveStageOrder !== undefined && !sameStage.length) {
+      const home = rank.get(node.viewId)!;
+      load.set(home, (load.get(home) ?? 0) + 1);
+      continue;
+    }
+    const candidates = sameStage.length ? sameStage : columns;
+    const target = candidates.reduce((best, column) => {
+      const a = load.get(best) ?? 0; const b = load.get(column) ?? 0;
+      return b < a ? column : best;
+    }, candidates[0]!);
+    rank.set(node.viewId, target);
+    load.set(target, (load.get(target) ?? 0) + 1);
+  }
 }
 
 interface StagedGraphNode extends GraphViewNode {

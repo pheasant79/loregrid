@@ -37,8 +37,8 @@ loregrid/
 
 `data/trees/` is the single location for tree definition JSON. Included examples are
 tracked; personal tree files are ignored. Progress JSON belongs in `data/progress/` and
-is ignored. The authoring template and compatibility fixture live outside these runtime
-data folders. The root build and tooling configuration stays at the repository root
+is ignored. The authoring template lives under `docs/templates/`; the legacy compatibility
+example is `data/trees/computer-science-phd.json`. The root tooling configuration stays at the repository root
 because pnpm, TypeScript, Vite, and Playwright discover it there; user guides and legal
 references are grouped under `docs/`.
 

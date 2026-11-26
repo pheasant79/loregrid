@@ -6,6 +6,21 @@ import { stageBandAtX, type StageBand } from '../core/stages';
 // real source's state and the era at their world X coordinate.
 export const EDGE_DEFAULT = '#4d5973';
 
+export interface EdgeZoomStyle {
+  alpha: number;
+  desaturation: number;
+  minScreenWidth: number;
+}
+
+export function edgeZoomStyle(scale: number): EdgeZoomStyle {
+  const lowZoom = Math.max(0, Math.min(1, (0.38 - scale) / 0.18));
+  return {
+    alpha: 1 - lowZoom * 0.1,
+    desaturation: 0,
+    minScreenWidth: 2,
+  };
+}
+
 export interface EdgeCurve {
   from: Point;
   control1: Point;

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
+const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
@@ -58,6 +59,23 @@ test('preserves unfinished stage frames and neutral surfaces across eras', async
     expect(frame.width).toBe('2px');
   }
   expect(new Set([...distinctStages.values()].map((frame) => frame.border)).size).toBe(distinctStages.size);
+
+  const nodeLayer = page.locator('.node-layer');
+  const lockedNode = page.locator('.graph-node.status-locked:not(.is-proxy)').first();
+  for (let index = 0; index < 7; index++) await page.locator('#zoomOut').click();
+  await expect(nodeLayer).toHaveClass(/lod-low/);
+  const lowZoomFrame = await lockedNode.evaluate((element) => ({
+    background: getComputedStyle(element).backgroundColor,
+    border: getComputedStyle(element).borderTopColor,
+    borderWidth: getComputedStyle(element).borderTopWidth,
+  }));
+  const lockedScale = Number((await page.locator('#zoomValue').textContent())!.replace('%', '')) / 100;
+  expect(lowZoomFrame.background).toBe('rgb(11, 22, 36)');
+  expect(lowZoomFrame.border).not.toBe('rgb(83, 107, 130)');
+  expect(Number.parseFloat(lowZoomFrame.borderWidth) * lockedScale).toBeCloseTo(1.5, 0);
+  for (let index = 0; index < 7; index++) await page.locator('#zoomIn').click();
+  await expect(nodeLayer).not.toHaveClass(/lod-low/);
+  await expect(lockedNode).toHaveCSS('background-color', 'rgb(9, 24, 45)');
 });
 
 test('keeps relation controls in the upper-right and zoom controls in the lower-left', async ({ page }) => {
@@ -267,6 +285,109 @@ test('completes a node and all missing required prerequisites', async ({ page })
   await expect(page).toHaveScreenshot('completed-phase-tint.png', { animations: 'disabled' });
 });
 
+test('keeps completed stage tint visible in low zoom without changing normal zoom styling', async ({ page }) => {
+  await page.locator('#categorySelect').selectOption('fieldwork');
+  const unfinished = page.locator('.graph-node.status-locked:not(.is-proxy)').first();
+  for (let index = 0; index < 7; index++) await page.locator('#zoomOut').click();
+  await expect(page.locator('.node-layer')).toHaveClass(/lod-low/);
+  await expect(unfinished).toHaveCSS('background-color', 'rgb(11, 22, 36)');
+  await expect(unfinished).toHaveCSS('background-image', 'none');
+  await expect(unfinished).not.toHaveCSS('box-shadow', 'none');
+  await expect(unfinished).toHaveCSS('display', 'flex');
+  await expect(unfinished.evaluate((element) => getComputedStyle(element, '::after').display)).resolves.toBe('block');
+  const unfinishedFill = await unfinished.evaluate((element) => getComputedStyle(element).backgroundColor);
+  for (let index = 0; index < 7; index++) await page.locator('#zoomIn').click();
+  await page.locator('.graph-node[data-node-id="survey-mission"]').click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: /^同时标记缺失前置完成/ }).click();
+  const completed = page.locator('.graph-node[data-node-id="survey-mission"]');
+  const normalStyle = await completed.evaluate((element) => ({
+    backgroundColor: getComputedStyle(element).backgroundColor,
+    backgroundImage: getComputedStyle(element).backgroundImage,
+    borderColor: getComputedStyle(element).borderTopColor,
+  }));
+  const nodeLayer = page.locator('.node-layer');
+  for (let index = 0; index < 7; index++) await page.locator('#zoomOut').click();
+  await expect(nodeLayer).toHaveClass(/lod-low/);
+  const lowStyle = await completed.evaluate((element) => ({
+    backgroundColor: getComputedStyle(element).backgroundColor,
+    backgroundImage: getComputedStyle(element).backgroundImage,
+    borderColor: getComputedStyle(element).borderTopColor,
+    borderWidth: getComputedStyle(element).borderTopWidth,
+    cornerRadius: getComputedStyle(element).borderTopLeftRadius,
+  }));
+  const completedScale = Number((await page.locator('#zoomValue').textContent())!.replace('%', '')) / 100;
+  expect(lowStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+  expect(lowStyle.backgroundColor).not.toBe(unfinishedFill);
+  expect(lowStyle.backgroundColor).toContain('0.58');
+  expect(lowStyle.backgroundImage).toContain('linear-gradient');
+  expect(lowStyle.backgroundImage).toContain('0.28');
+  // Both layers contribute opacity. Guard the composite, not only one layer,
+  // so a translucent tint cannot accidentally sit over an almost-solid base.
+  const baseAlpha = Number(lowStyle.backgroundColor.match(/[\d.]+/g)![3]);
+  const tintAlpha = Number(lowStyle.backgroundImage.match(/[\d.]+/g)![3]);
+  const compositeAlpha = 1 - (1 - baseAlpha) * (1 - tintAlpha);
+  expect(compositeAlpha).toBeGreaterThan(0.5);
+  expect(compositeAlpha).toBeLessThan(0.75);
+  expect(Number.parseFloat(lowStyle.borderWidth) * completedScale).toBeCloseTo(1.5, 0);
+  expect(Number.parseFloat(lowStyle.cornerRadius) * completedScale).toBeCloseTo(4.9, 0);
+  // Keep keyboard/dialog focus scrolling out of this rendering-only baseline.
+  await page.locator('#detailBody').evaluate((element) => { element.scrollTop = 0; });
+  await expect(page.locator('#viewport')).toHaveScreenshot('low-zoom-completed-translucency.png', { animations: 'disabled' });
+  for (let index = 0; index < 7; index++) await page.locator('#zoomIn').click();
+  await expect(nodeLayer).toHaveClass(/lod-high/);
+  await expect(completed).toHaveCSS('background-color', normalStyle.backgroundColor);
+  await expect(completed).toHaveCSS('background-image', /linear-gradient/);
+  await expect(completed).toHaveCSS('border-top-color', normalStyle.borderColor);
+});
+
+test('retains major background grid at 20 and 8 percent while fading minor lines', async ({ page }) => {
+  await page.addInitScript(() => {
+    const clear = CanvasRenderingContext2D.prototype.clearRect;
+    const stroke = CanvasRenderingContext2D.prototype.stroke;
+    CanvasRenderingContext2D.prototype.clearRect = function (...args) {
+      if (this.canvas.classList.contains('graph-canvas')) this.canvas.dataset.gridStrokes = '';
+      return clear.apply(this, args);
+    };
+    CanvasRenderingContext2D.prototype.stroke = function (...args: [] | [Path2D]) {
+      if (this.canvas.classList.contains('graph-canvas') && typeof this.strokeStyle === 'string'
+        && /^rgba\(255,\s*255,\s*255,/.test(this.strokeStyle)) {
+        this.canvas.dataset.gridStrokes += `${this.strokeStyle};`;
+      }
+      if (args.length) return stroke.call(this, args[0]);
+      return (stroke as (this: CanvasRenderingContext2D) => void).call(this);
+    };
+  });
+  await page.reload();
+  await expect(page.locator('#layoutBusy')).toBeHidden();
+  const canvas = page.locator('.graph-canvas');
+  for (let index = 0; index < 20; index++) await page.locator('#zoomIn').click();
+  // Canvas can serialize 0.018 alpha as 0.02 after color quantization.
+  await expect(canvas).toHaveAttribute('data-grid-strokes', /0\.(?:018|02)\)/);
+  for (let index = 0; index < 25; index++) await page.locator('#zoomOut').click();
+  await expect(page.locator('#zoomValue')).toHaveText('20%');
+  await expect(canvas).toHaveAttribute('data-grid-strokes', /^rgba\(255,\s*255,\s*255,\s*0\.035\);$/);
+  await expect(page.locator('#viewport')).toHaveScreenshot('low-zoom-background-grid.png', { animations: 'disabled' });
+  await page.locator('#zoomFloorToggle').uncheck();
+  for (let index = 0; index < 10; index++) await page.locator('#zoomOut').click();
+  await expect(page.locator('#zoomValue')).toHaveText('8%');
+  await expect(canvas).toHaveAttribute('data-grid-strokes', /^rgba\(255,\s*255,\s*255,\s*0\.035\);$/);
+});
+
+test('locks zoom at 20 percent by default and allows 8 percent when unlocked', async ({ page }) => {
+  const toggle = page.locator('#zoomFloorToggle');
+  await expect(toggle).toBeChecked();
+  await expect(page.locator('#zoomFloorLabel')).toHaveText('20%');
+  for (let index = 0; index < 20; index++) await page.locator('#zoomOut').click();
+  await expect(page.locator('#zoomValue')).toHaveText('20%');
+  await toggle.uncheck();
+  await expect(page.locator('#zoomFloorLabel')).toHaveText('8%');
+  for (let index = 20; index < 30; index++) await page.locator('#zoomOut').click();
+  await expect(page.locator('#zoomValue')).toHaveText('8%');
+  await page.reload();
+  await expect(page.locator('#zoomFloorToggle')).not.toBeChecked();
+});
+
 test('queues learning goals, removes them with the card X, and restores queue after reload', async ({ page }) => {
   await page.locator('.graph-node[data-node-id="station-orientation"]').click();
   await page.locator('#detailBody button').filter({ hasText: '加入队列' }).click();
@@ -455,7 +576,7 @@ test('opens the root ready app directly from the filesystem', async ({ page }) =
   await page.goto(pathToFileURL(resolve('index.html')).href);
   await expect(page.locator('.source-entry')).toHaveCount(0);
   await expect(page.locator('#treeTitle')).not.toBeEmpty();
-  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0');
+  await expect(page.locator('#statusText')).toHaveText(`Loregrid ${manifest.version}`);
   await expect(page.locator('.graph-node').first()).toBeVisible();
   const currentPageCount = Number(((await page.locator('#graphStats').textContent()) ?? '').match(/\d+/)?.[0]);
   await page.locator('#tabs button').first().click();

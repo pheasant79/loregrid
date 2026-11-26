@@ -26,8 +26,11 @@ import { GraphRenderer } from './renderer';
 import { LayoutService } from './layout-service';
 import { TreeLibrary, type TreeLibraryEntry, type TreeLibraryItem } from '../core/tree-library';
 import { LocalDataFolder } from '../core/local-data-folder';
+import { UpdateDialog } from './update-dialog';
 
 export class LoregridApp {
+  private static readonly zoomFloorPreferenceKey = 'loregrid:zoom-floor-locked';
+  private zoomFloorLocked = this.loadZoomFloorPreference();
   private tree!: TreeDefinitionV2;
   private progress!: ProgressV2;
   private language: Language = 'en';
@@ -60,16 +63,21 @@ export class LoregridApp {
   private localData = new LocalDataFolder();
   private localDataConnected = false;
   private localDataPermissionNeeded = false;
+  private updates: UpdateDialog;
 
   constructor(private root: HTMLElement, private initialTree: unknown) {
     this.renderShell();
+    this.updates = new UpdateDialog(this.root, __LOREGRID_VERSION__, () => this.language, () => this.backupCurrentProgress(true));
     this.bindShell();
     this.renderer = new GraphRenderer(this.element('viewport'), {
       onNodeClick: (node, event) => void this.handleNodeClick(node, event),
       onNodeContextMenu: (node, event) => this.showNodeMenu(node, event),
       onViewChange: (view) => this.updateZoomLabel(view.scale),
     });
+    this.renderer.setZoomFloorLocked(this.zoomFloorLocked);
+    this.syncZoomFloorControl();
     this.libraryReady = this.initializeLibrary(initialTree);
+    void this.libraryReady.then(() => this.updates.startup());
   }
 
   private renderShell(): void {
@@ -93,6 +101,7 @@ export class LoregridApp {
                   <button id="exportTree" type="button" data-i18n="exportTree"></button>
                   <button id="backupProgress" type="button" data-i18n="backup"></button>
                   <button id="restoreProgress" type="button" data-i18n="restore"></button>
+                  <button id="checkUpdates" type="button"></button>
                 </div>
                 <button id="languageToggle" class="language-toggle" type="button">中 / EN</button>
               </div>
@@ -135,6 +144,7 @@ export class LoregridApp {
                 <button id="fitView" type="button" data-i18n-title="fit" aria-label="Fit view"><svg class="fit-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></svg></button>
                 <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
                 <span id="zoomValue">100%</span>
+                <label class="zoom-floor-toggle"><input id="zoomFloorToggle" type="checkbox" /><span id="zoomFloorLabel"></span></label>
                 <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
               </div>
               <button id="toggleRelations" class="relation-toggle" type="button" data-i18n="relations"></button>
@@ -159,7 +169,7 @@ export class LoregridApp {
           </section>
         </main>
         <footer class="statusbar">
-          <div><span class="status-dot"></span><span id="statusText">Loregrid ${__LOREGRID_VERSION__}</span></div>
+          <div><span class="status-dot"></span><button id="versionButton" class="version-button" type="button" aria-haspopup="dialog"><span id="statusText">Loregrid ${__LOREGRID_VERSION__}</span><span id="updateBadge" class="update-badge" hidden></span></button></div>
           <div id="progressSummary"></div>
         </footer>
         <dialog id="presetDialog" class="preset-dialog">
@@ -205,6 +215,12 @@ export class LoregridApp {
     }, { passive: false });
 
     this.element<HTMLButtonElement>('fitView').onclick = () => this.renderer.fit();
+    this.element<HTMLInputElement>('zoomFloorToggle').onchange = (event) => {
+      this.zoomFloorLocked = (event.currentTarget as HTMLInputElement).checked;
+      try { localStorage.setItem(LoregridApp.zoomFloorPreferenceKey, String(this.zoomFloorLocked)); } catch { /* Optional for file URLs. */ }
+      this.renderer.setZoomFloorLocked(this.zoomFloorLocked);
+      this.syncZoomFloorControl();
+    };
     this.element<HTMLButtonElement>('clearQueue').onclick = () => {
       const count = this.progress.queue.length;
       if (!count) return;
@@ -392,12 +408,7 @@ export class LoregridApp {
     this.element<HTMLButtonElement>('exportTree').onclick = () => this.download(`${this.tree.id}.json`, JSON.stringify(this.tree, null, 2));
     this.element<HTMLButtonElement>('chooseDataFolder').onclick = () => void this.chooseDataFolder();
     this.element<HTMLButtonElement>('refreshDataFolder').onclick = () => void this.refreshDataFolder();
-    this.element<HTMLButtonElement>('backupProgress').onclick = () => {
-      this.progress = { ...this.progress, exportedAt: new Date().toISOString() };
-      this.persist();
-      if (this.localDataConnected) void this.writeProgressFile(true);
-      else this.download(`${this.tree.id}.progress.json`, JSON.stringify(this.progress, null, 2));
-    };
+    this.element<HTMLButtonElement>('backupProgress').onclick = () => this.backupCurrentProgress();
     this.element<HTMLButtonElement>('restoreProgress').onclick = () => this.element<HTMLInputElement>('progressFile').click();
     this.element<HTMLInputElement>('progressFile').onchange = (event) => void this.restoreProgressFile(event);
     this.element<HTMLButtonElement>('languageToggle').onclick = () => {
@@ -460,6 +471,7 @@ export class LoregridApp {
     this.element<HTMLButtonElement>('historyBack').onclick = () => void this.navigateHistory(-1);
     this.element<HTMLButtonElement>('historyForward').onclick = () => void this.navigateHistory(1);
     document.addEventListener('keydown', (event) => {
+      if (this.root.querySelector('dialog[open]')) return;
       if (event.key === '/' && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
         event.preventDefault(); search.focus();
       }
@@ -1197,11 +1209,22 @@ export class LoregridApp {
       const key = element.dataset.i18nTitle as MessageKey; element.title = t(this.language, key);
     });
     this.element<HTMLInputElement>('searchInput').placeholder = t(this.language, 'search');
+    this.syncZoomFloorControl();
     if (this.tree && this.progress) {
       const selection = this.graphSelection(this.graphKey);
       this.element('activePage').textContent = this.graphKey === 'all' ? t(this.language, 'all') : this.graphLabel(this.graphKey);
     }
     this.updateProgressSummary();
+    this.updates.render();
+  }
+
+  private backupCurrentProgress(forceDownload = false): void {
+    if (!this.progress || !this.tree) return;
+    this.progress = { ...this.progress, exportedAt: new Date().toISOString() };
+    this.persist();
+    // Upgrade backups download separately; keep the existing menu's folder-saving behavior.
+    if (this.localDataConnected && !forceDownload) void this.writeProgressFile(true);
+    else this.download(`${this.tree.id}.progress.json`, JSON.stringify(this.progress, null, 2));
   }
 
   private updateProgressSummary(): void {
@@ -1414,6 +1437,17 @@ export class LoregridApp {
   }
 
   private updateZoomLabel(scale: number): void { this.element('zoomValue').textContent = `${Math.round(scale * 100)}%`; }
+  private loadZoomFloorPreference(): boolean {
+    try { return localStorage.getItem(LoregridApp.zoomFloorPreferenceKey) !== 'false'; } catch { return true; }
+  }
+  private syncZoomFloorControl(): void {
+    const toggle = this.element<HTMLInputElement>('zoomFloorToggle');
+    toggle.checked = this.zoomFloorLocked;
+    const value = this.zoomFloorLocked ? '20' : '8';
+    this.element('zoomFloorLabel').textContent = `${value}%`;
+    toggle.parentElement!.title = t(this.language, 'zoomFloor').replace('{value}', value);
+    toggle.setAttribute('aria-label', toggle.parentElement!.title);
+  }
   private tabLabel(tabId: string): string { const tab = this.tree.tabs.find((entry) => entry.id === tabId); return this.language === 'en' ? tab?.labelEn ?? tab?.label ?? tabId : tab?.label ?? tabId; }
   private graphLabel(key: GraphKey): string {
     const preset = this.progress.ui?.presets?.find((entry) => key === `preset:${entry.id}`);

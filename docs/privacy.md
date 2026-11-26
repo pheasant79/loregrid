@@ -18,6 +18,15 @@ and automatic saving pauses until the user restores valid progress.
 Loregrid does not upload imported trees, notes, queues, or progress. External resource
 links open third-party websites.
 
+## Optional update checks
+
+Update checks are off by default. Clicking the version label or the menu's **Check for
+updates** connects to GitHub's Releases API. An optional startup check runs at most
+once daily. GitHub receives ordinary network metadata, such as your IP address; trees,
+notes, queues, and progress are never included. Preferences and the last attempt time
+are stored separately from learning progress. Release/download links open GitHub.
+No files are automatically downloaded or overwritten. See [updating Loregrid](updates.md).
+
 ## Back up important data
 
 Tree JSON and progress backups are separate:

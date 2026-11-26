@@ -25,7 +25,7 @@ newer browser or folder copy can be restored after access is interrupted.
 The folder picker requires browser support and a secure context. The local Chrome build
 was checked with the standalone HTML opened directly from disk (`file://`): the folder
 picker API is available there too. Opening the HTML alone does not grant access to adjacent
-folders: open **Tree library → Choose data folder**, select `data/` (not `trees/`), and
+folders: open **⋯ → Choose data folder**, select `data/` (not `trees/`), and
 grant access first. Permission may need to be renewed later.
 
 Firefox and other browsers without this API should use **Import tree JSON** and the

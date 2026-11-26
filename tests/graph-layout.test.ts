@@ -110,6 +110,39 @@ describe('layered layout', () => {
     expect(stageLayout.stageBoundaries.map((stage) => stage.stageId)).toEqual(['first', 'second']);
   });
 
+  it('distributes isolated nodes into underfilled ranks in their stage deterministically', () => {
+    const tree = makeTree();
+    tree.stages = [{ id: 'early', title: 'Early', order: 0 }, { id: 'late', title: 'Late', order: 1 }];
+    tree.nodes = [
+      { id: 'root', title: 'Root', tabId: 'alpha', layout: { stageId: 'early' } },
+      { id: 'child', title: 'Child', tabId: 'alpha', layout: { stageId: 'late' } },
+      ...['lone-a', 'lone-b', 'lone-c'].map((id) => ({ id, title: id, tabId: 'alpha', layout: { stageId: 'late' } })),
+    ];
+    tree.edges = [{ id: 'root-child', source: 'root', target: 'child', type: 'required' }];
+    const first = layoutGraph(buildGraphView(tree, 'all'));
+    const second = layoutGraph(buildGraphView(tree, 'all'));
+    const byId = new Map(first.nodes.map((node) => [node.nodeId, node]));
+    expect(byId.get('root')!.rank).toBe(0);
+    expect(byId.get('child')!.rank).toBe(1);
+    expect(new Set(['lone-a', 'lone-b', 'lone-c'].map((id) => byId.get(id)!.rank))).toEqual(new Set([1]));
+    expect(new Set(['lone-a', 'lone-b', 'lone-c'].map((id) => byId.get(id)!.y)).size).toBe(3);
+    expect({ ...first, durationMs: 0 }).toEqual({ ...second, durationMs: 0 });
+  });
+
+  it('packs an all-isolated graph into a deterministic compact grid', () => {
+    const tree = makeTree();
+    tree.nodes = Array.from({ length: 9 }, (_, index) => ({ id: `isolate-${index}`, title: `Isolate ${index}`, tabId: 'alpha' }));
+    tree.edges = [];
+    const layout = layoutGraph(buildGraphView(tree, 'all'));
+    expect(new Set(layout.nodes.map((node) => node.rank)).size).toBe(3);
+    expect(new Set(layout.nodes.map((node) => node.y)).size).toBe(3);
+    expect(new Set(layout.nodes.map((node) => `${node.x}:${node.y}`)).size).toBe(9);
+    for (let left = 0; left < layout.nodes.length; left += 1) for (let right = left + 1; right < layout.nodes.length; right += 1) {
+      const a = layout.nodes[left]!; const b = layout.nodes[right]!;
+      expect(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y).toBe(true);
+    }
+  });
+
   it('validates and traverses more than ten thousand chained nodes without recursion limits', () => {
     const tree = makeTree();
     tree.nodes = Array.from({ length: 12_000 }, (_, index) => ({ id: `n${index}`, title: `N${index}`, tabId: 'alpha' }));

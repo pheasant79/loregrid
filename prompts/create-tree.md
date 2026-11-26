@@ -1,34 +1,44 @@
-# Copyable prompt: create a Loregrid tree
+# Create a Loregrid tree: copyable prompt
+
+Fill in the fields below. See the [authoring guide](../docs/create-with-codex.md#english) for the full workflow.
 
 ```text
-Use this Loregrid repository as the implementation reference. Read AGENTS.md,
-docs/create-with-codex.md, docs/data-format.md, docs/customization.md, and
-docs/templates/minimal-template-v2.json before editing.
+Create or revise a learning tree in this Loregrid repository.
+Read AGENTS.md, docs/data-format.md, docs/customization.md, and
+docs/templates/minimal-template-v2.json before editing. Preserve the viewer.
 
-Subject or interdisciplinary goal: [fill in]
+Subject and scope: [fill in]
 Starting knowledge: [fill in]
-Desired outcomes: [fill in]
-Meaningful page/tab categories: [fill in or propose]
-Special interests and constraints: [fill in]
+Observable outcomes: [fill in]
+Page suggestions: [fill in or propose]
 Language and depth: [fill in]
-Output boundary: fictional public example or private personal tree
+Other constraints: [fill in]
+Intended for public sharing: [yes/no; manual review still required]
 
-Create a loregrid/tree-v2 definition with stable IDs. Each node must belong to
-one primary tab and should have a clear scope and observable outcome. Use
-required edges only for genuine hard prerequisites; multiple required inputs
-mean AND. Use recommended edges for directed, non-gating development and
-related edges for contextual association. Required edges must be acyclic.
+Output only data/trees/<stable-id>.json using loregrid/tree-v2.
+Do not create HTML, edit progress, build, commit, push, or publish.
+The author maintains the fixed tree content; the app reads it.
+Completion, queue, and private notes belong to separate progress files.
 
-Allow multiple roots, leaves, and milestones. Do not invent a universal degree
-sequence, fixed duration, institution, publication quota, or mandatory method.
-Use primary public sources for specialized factual claims and distinguish those
-claims from educational design. Do not fabricate citations.
+Use stable tree and node IDs; preserve existing IDs when revising titles.
+Each node has one primary page and should explain its scope and outcome.
+Use required only for genuine prerequisites: multiple inputs mean AND,
+and required edges must be acyclic. Recommended links do not gate learning;
+related links are undirected associations. Allow multiple roots, leaves,
+and milestones. Do not fabricate dependencies just to connect everything.
 
-Do not write x/y positions. Optional group, order, and stage values are layout
-hints only. Preserve privacy: public files must not include identities,
-credentials, advisors, student records, private notes, progress, unpublished
-work, or local paths. Put private trees under local-data/.
+All combines the current tree's pages. Optional stages are shared across
+the whole tree, never independently defined per page. Omit stages if they
+do not suit the subject. Do not supply x/y coordinates; group/order are hints.
 
-Validate with `pnpm validate -- <file>` and report structural, browser, and
-academic review separately. Do not push or publish unless explicitly asked.
+Verify specialized claims against reliable primary sources and distinguish
+facts from educational design. Never invent citations or institutional rules.
+Keep identities, credentials, personal notes, progress, unpublished material,
+and local paths out of shared files. Keep trees together in data/trees/;
+do not create separate public/private tree directories.
+
+If repository tools are available, run:
+pnpm validate -- data/trees/<stable-id>.json
+Report structural validation, content review, and browser checks separately.
+Clearly state any checks not performed.
 ```

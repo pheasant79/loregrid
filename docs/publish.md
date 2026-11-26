@@ -10,5 +10,10 @@ No publication is implied by a successful build. Before a public push, Release, 
 4. Keep `LICENSE`, `docs/legal/THIRD_PARTY_NOTICES.md`, and the YART source map.
 5. Confirm the default example is fictional and contains no unauthorized assets.
 6. Record browser/performance limitations honestly.
+7. Run `pnpm package:release`. Attach both `dist/Loregrid-v<version>-offline.zip`
+   (first installation) and `dist/Loregrid-v<version>-update.html` (existing users).
+   Keep these exact asset names: the update dialog recognizes them. Publish a stable
+   semantic-version tag such as `v2.0.1` only after updating `package.json` and checking
+   the packaged version. Prereleases are intentionally excluded from stable checks.
 
 Push, GitHub Pages, Releases, and upstream pull requests require separate explicit authorization.

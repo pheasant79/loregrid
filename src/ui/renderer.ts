@@ -5,7 +5,7 @@ import { SpatialIndex } from './spatial-index';
 import { DependencyFocus } from '../core/focus';
 import { computeStageBands, stageColor, type StageBand } from '../core/stages';
 import { distributeEdgePorts } from './edge-routing';
-import { blendColor, buildEdgeCurves } from './edge-paint';
+import { blendColor, buildEdgeCurves, edgeZoomStyle, EDGE_DEFAULT } from './edge-paint';
 import { placeStageLabels } from './stage-labels';
 import edgeLineUrl from '../assets/yart/EdgeLine.png';
 
@@ -50,6 +50,7 @@ export class GraphRenderer {
   private edgeTextureBands: Array<{ width: number; alpha: number }> = [];
   private stageBands: StageBand[] = [];
   private edgeCurves: ReturnType<typeof buildEdgeCurves> | null = null;
+  private zoomFloorLocked = true;
 
   constructor(private viewport: HTMLElement, callbacks: RendererCallbacks) {
     this.callbacks = callbacks;
@@ -162,9 +163,18 @@ export class GraphRenderer {
   }
 
   setView(view: ViewTransform): void {
-    this.view = { ...view, scale: clamp(view.scale, 0.08, 2.4) };
+    this.view = { ...view, scale: clamp(view.scale, this.zoomFloorLocked ? 0.2 : 0.08, 2.4) };
     this.callbacks.onViewChange(this.getView());
     this.requestDraw();
+  }
+
+  setZoomFloorLocked(locked: boolean): void {
+    this.zoomFloorLocked = locked;
+    const minimum = locked ? 0.2 : 0.08;
+    if (this.view.scale < minimum) {
+      const rect = this.viewport.getBoundingClientRect();
+      this.zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, minimum / this.view.scale);
+    } else this.requestDraw();
   }
 
   pan(dx: number, dy: number): void {
@@ -177,7 +187,7 @@ export class GraphRenderer {
     const py = clientY - rect.top;
     const worldX = (px - this.view.x) / this.view.scale;
     const worldY = (py - this.view.y) / this.view.scale;
-    const scale = clamp(this.view.scale * factor, 0.08, 2.4);
+    const scale = clamp(this.view.scale * factor, this.zoomFloorLocked ? 0.2 : 0.08, 2.4);
     this.setView({ x: px - worldX * scale, y: py - worldY * scale, scale });
   }
 
@@ -185,7 +195,7 @@ export class GraphRenderer {
     if (!this.layout) return;
     const width = Math.max(1, this.viewport.clientWidth - padding * 2);
     const height = Math.max(1, this.viewport.clientHeight - padding * 2);
-    const scale = clamp(Math.min(width / this.layout.width, height / this.layout.height), 0.08, 1);
+    const scale = clamp(Math.min(width / this.layout.width, height / this.layout.height), this.zoomFloorLocked ? 0.2 : 0.08, 1);
     this.setView({
       scale,
       x: (this.viewport.clientWidth - this.layout.width * scale) / 2,
@@ -231,12 +241,13 @@ export class GraphRenderer {
     const ctx = this.context;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, this.viewport.clientWidth, this.viewport.clientHeight);
-    drawGrid(ctx, this.viewport.clientWidth, this.viewport.clientHeight, this.view);
     const relationToggle = this.viewport.querySelector<HTMLElement>('#toggleRelations');
     const relationWidth = relationToggle && getComputedStyle(relationToggle).display !== 'none'
       ? relationToggle.offsetWidth
       : 0;
-    drawStageBands(ctx, this.stageBands, this.view, this.viewport.clientWidth, this.viewport.clientHeight, relationWidth);
+    drawStageBands(ctx, this.stageBands, this.view, this.viewport.clientWidth, this.viewport.clientHeight);
+    drawGrid(ctx, this.viewport.clientWidth, this.viewport.clientHeight, this.view);
+    drawStageTitles(ctx, this.stageBands, this.view, this.viewport.clientWidth, relationWidth);
     ctx.save();
     ctx.translate(this.view.x, this.view.y);
     ctx.scale(this.view.scale, this.view.scale);
@@ -267,6 +278,7 @@ export class GraphRenderer {
     const bottom = top + this.viewport.clientHeight / this.view.scale + 2 * margin;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    const zoomStyle = edgeZoomStyle(this.view.scale);
     for (const curve of this.edgeCurves) {
       const { from, control1, control2, to, type, selected } = curve;
       if (Math.max(from.x, to.x) < left || Math.min(from.x, to.x) > right
@@ -274,10 +286,14 @@ export class GraphRenderer {
       const gradient = ctx.createLinearGradient(
         from.x, from.y, to.x === from.x && to.y === from.y ? to.x + .001 : to.x, to.y,
       );
-      gradient.addColorStop(0, selected ? blendColor(curve.startColor, '#ffffff', .48) : curve.startColor);
-      gradient.addColorStop(1, selected ? blendColor(curve.endColor, '#ffffff', .48) : curve.endColor);
+      const startColor = blendColor(curve.startColor, EDGE_DEFAULT, zoomStyle.desaturation);
+      const endColor = blendColor(curve.endColor, EDGE_DEFAULT, zoomStyle.desaturation);
+      gradient.addColorStop(0, selected ? blendColor(startColor, '#ffffff', .48) : startColor);
+      gradient.addColorStop(1, selected ? blendColor(endColor, '#ffffff', .48) : endColor);
       ctx.strokeStyle = gradient;
-      const lineWidth = type === 'recommended' ? Math.max(1.2 / this.view.scale, 1.3) : Math.max(2 / this.view.scale, 3);
+      const lineWidth = type === 'recommended'
+        ? Math.max(1.2 / this.view.scale, 1.3)
+        : Math.max(zoomStyle.minScreenWidth / this.view.scale, 3);
       ctx.setLineDash(type === 'recommended' ? [7, 7] : []);
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
@@ -285,21 +301,21 @@ export class GraphRenderer {
       if (type === 'required') {
         // A narrow, low-alpha fringe plus YART's alpha-profile core, rather
         // than a flat dim stroke or expensive per-edge shadowBlur.
-        ctx.globalAlpha = selected ? .12 : .07;
+        ctx.globalAlpha = (selected ? .12 : .07) * zoomStyle.alpha;
         ctx.lineWidth = lineWidth * 2.2;
         ctx.stroke();
       }
       if (this.edgeTextureBands.length && type === 'required') {
         let previousAlpha = 0;
         for (const band of this.edgeTextureBands) {
-          const targetAlpha = band.alpha * (selected ? 1 : .95);
+          const targetAlpha = band.alpha * (selected ? 1 : .95) * zoomStyle.alpha;
           ctx.globalAlpha = previousAlpha < 1 ? (targetAlpha - previousAlpha) / (1 - previousAlpha) : 0;
           ctx.lineWidth = lineWidth * band.width;
           ctx.stroke();
           previousAlpha = targetAlpha;
         }
       } else {
-        ctx.globalAlpha = type === 'recommended' ? .72 : .95;
+        ctx.globalAlpha = type === 'recommended' ? .72 : .95 * zoomStyle.alpha;
         ctx.lineWidth = lineWidth;
         ctx.stroke();
       }
@@ -321,6 +337,9 @@ export class GraphRenderer {
     }
     this.nodeLayer.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.nodeLayer.className = `node-layer ${this.view.scale < 0.38 ? 'lod-low' : this.view.scale < 0.68 ? 'lod-medium' : this.view.scale >= 1.1 ? 'lod-rich' : 'lod-high'}`;
+    this.nodeLayer.style.setProperty('--lod-border-width', `${this.view.scale < 0.38 ? 1.5 / this.view.scale : 2}px`);
+    this.nodeLayer.style.setProperty('--lod-glow-size', `${this.view.scale < 0.38 ? 4 / this.view.scale : 0}px`);
+    this.nodeLayer.style.setProperty('--lod-corner-radius', `${Math.max(7, 4.9 / this.view.scale)}px`);
     const richProgress = clamp((this.view.scale - 1.1) / 0.2, 0, 1);
     this.nodeLayer.style.setProperty('--rich-opacity', String(richProgress));
 
@@ -469,29 +488,33 @@ export class GraphRenderer {
   }
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: ViewTransform): void {
-  const spacing = 42 * view.scale;
-  if (spacing < 9) return;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.018)';
+export function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, view: ViewTransform): void {
+  // YART Canvas.DrawGrid / Constraints: fade minor lines independently;
+  // major lines remain present even at the minimum supported zoom.
+  if (!Number.isFinite(view.scale) || view.scale <= 0) return;
+  const minorAlpha = 0.018 * clamp((view.scale - 0.4) / 0.2, 0, 1);
+  ctx.save();
   ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = ((view.x % spacing) + spacing) % spacing; x < width; x += spacing) {
-    ctx.moveTo(x, 0); ctx.lineTo(x, height);
-  }
-  for (let y = ((view.y % spacing) + spacing) % spacing; y < height; y += spacing) {
-    ctx.moveTo(0, y); ctx.lineTo(width, y);
-  }
-  ctx.stroke();
-  const majorSpacing = spacing * 5;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
-  ctx.beginPath();
-  for (let x = ((view.x % majorSpacing) + majorSpacing) % majorSpacing; x < width; x += majorSpacing) {
-    ctx.moveTo(x, 0); ctx.lineTo(x, height);
-  }
-  for (let y = ((view.y % majorSpacing) + majorSpacing) % majorSpacing; y < height; y += majorSpacing) {
-    ctx.moveTo(0, y); ctx.lineTo(width, y);
-  }
-  ctx.stroke();
+  const drawLines = (worldSpacing: number, alpha: number, skipMajor: boolean): void => {
+    if (alpha <= 0.004) return;
+    const spacing = worldSpacing * view.scale;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.beginPath();
+    for (let index = Math.ceil(-view.x / spacing); index * spacing + view.x < width; index++) {
+      if (skipMajor && index % 5 === 0) continue;
+      const x = index * spacing + view.x;
+      ctx.moveTo(x, 0); ctx.lineTo(x, height);
+    }
+    for (let index = Math.ceil(-view.y / spacing); index * spacing + view.y < height; index++) {
+      if (skipMajor && index % 5 === 0) continue;
+      const y = index * spacing + view.y;
+      ctx.moveTo(0, y); ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+  };
+  drawLines(40, minorAlpha, true);
+  drawLines(200, 0.035, false);
+  ctx.restore();
 }
 
 function drawStageBands(
@@ -500,14 +523,10 @@ function drawStageBands(
   view: ViewTransform,
   viewportWidth: number,
   viewportHeight: number,
-  relationControlWidth: number,
 ): void {
   if (!bands.length) return;
   ctx.save();
   ctx.lineWidth = 1;
-  ctx.font = '600 11px Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
   bands.forEach((band) => {
     const left = band.left * view.scale + view.x;
     const right = band.right * view.scale + view.x;
@@ -525,6 +544,21 @@ function drawStageBands(
     ctx.stroke();
 
   });
+  ctx.restore();
+}
+
+function drawStageTitles(
+  ctx: CanvasRenderingContext2D,
+  bands: readonly StageBand[],
+  view: ViewTransform,
+  viewportWidth: number,
+  relationControlWidth: number,
+): void {
+  if (!bands.length) return;
+  ctx.save();
+  ctx.font = '600 11px Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
   for (const label of placeStageLabels(bands, view, viewportWidth, relationControlWidth, (text) => ctx.measureText(text).width)) {
     ctx.fillStyle = label.color;
     ctx.fillText(label.text, label.x, label.y);

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Loregrid">
+  <rect x="1" y="1" width="78" height="78" rx="20" fill="#101e30" stroke="#526d87" stroke-width="2"/>
+  <path d="M24 54V40h16V24h16M40 40v14h16" fill="none" stroke="#89b8cf" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="18" y="48" width="12" height="12" rx="3" fill="#b3d5ba"/>
+  <rect x="34" y="34" width="12" height="12" rx="3" fill="#94bdd5"/>
+  <rect x="50" y="18" width="12" height="12" rx="3" fill="#ddbe83"/>
+  <rect x="50" y="48" width="12" height="12" rx="3" fill="#94bdd5"/>
+</svg>

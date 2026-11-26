@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+const manifest = JSON.parse(await readFile(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string };
 
 test('opens V1 content, migrates progress without modifying its original storage, and retains notes', async ({ page }) => {
   const input = JSON.parse(await readFile('data/trees/computer-science-phd.json', 'utf8'));
@@ -29,6 +30,37 @@ test('opens V1 content, migrates progress without modifying its original storage
   }), input.id);
   expect(JSON.parse(saved.legacy!).format).toBe('learning-tech-progress/v1');
   expect(JSON.parse(saved.current!).format).toBe('loregrid/progress-v2');
+});
+
+test('preserves translucent completion and neutral unfinished nodes in the offline 155-node overview', async ({ page }) => {
+  const input = JSON.parse(await readFile('data/trees/computer-science-phd.json', 'utf8'));
+  await page.goto(pathToFileURL(resolve('index.html')).href);
+  await expect(page.locator('.graph-node').first()).toBeVisible();
+  await page.evaluate(({ treeId, ids }) => {
+    localStorage.setItem(`learning-tech-tree:progress:${treeId}`, JSON.stringify({
+      format: 'learning-tech-progress/v1', treeId,
+      completed: Object.fromEntries(ids.map((id: string) => [id, true])), notes: {},
+    }));
+  }, { treeId: input.id, ids: input.nodes.slice(0, 33).map((node: { id: string }) => node.id) });
+  await page.locator('#treeFile').setInputFiles('data/trees/computer-science-phd.json');
+  await expect(page.locator('#layoutBusy')).toBeHidden();
+  await page.locator('#tabs button').first().click();
+  await expect(page.locator('#layoutBusy')).toBeHidden();
+  for (let index = 0; index < 15; index++) await page.locator('#zoomOut').click();
+  await expect(page.locator('#zoomValue')).toHaveText('20%');
+  const completed = page.locator('.graph-node.status-completed:not(.is-proxy)');
+  const unfinished = page.locator('.graph-node.status-locked:not(.is-proxy)');
+  expect(await completed.count()).toBeGreaterThan(0);
+  expect(await unfinished.count()).toBeGreaterThan(0);
+  await expect(completed.first()).toHaveCSS('background-color', 'rgba(11, 28, 51, 0.58)');
+  await expect(completed.first()).toHaveCSS('background-image', /0\.28/);
+  await expect(unfinished.first()).toHaveCSS('background-color', 'rgb(11, 22, 36)');
+  await expect(unfinished.first()).toHaveCSS('background-image', 'none');
+  // Exclude the timed migration toast; it is unrelated to node/grid rendering.
+  await page.addStyleTag({ content: '#toast { visibility: hidden !important; }' });
+  await expect(page.locator('#viewport')).toHaveScreenshot('offline-155-node-completion.png', {
+    animations: 'disabled',
+  });
 });
 
 test('shows a V2 node stage in the details panel', async ({ page }) => {
@@ -282,5 +314,5 @@ test('loads 10000 nodes, switches pages, searches globally and measures pan and 
 
 test('shows the concrete build version in the app footer', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('#statusText')).toHaveText('Loregrid 2.0.0');
+  await expect(page.locator('#statusText')).toHaveText(`Loregrid ${manifest.version}`);
 });

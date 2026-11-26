@@ -51,8 +51,7 @@ order once at tree level, then assign nodes with `layout.stageId`.
 Stages label and color regions; they do not force graph rank or spacing. Required
 dependencies determine the layout. Optional nodes do not block stage completion.
 
-Do not assign different meanings to the same stage order on different pages. The
-following small example defines two shared stages:
+Do not assign different meanings to the same stage order on different pages.
 
 ## Relationships
 
